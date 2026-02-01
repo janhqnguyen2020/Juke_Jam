@@ -37,3 +37,7 @@ data/raw/
 *.mp3
 *.wav
 *.flac
+data/raw/Personal Data/Joseph/
+
+# Keep processed outputs in git
+!data/processed/
