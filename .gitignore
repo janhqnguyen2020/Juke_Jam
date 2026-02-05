@@ -32,6 +32,12 @@ Thumbs.db
 # Logs
 *.log
 
+# Claude
+.claude/
+claude/
+claude.*
+CLAUDE.md
+
 # Data (large/raw assets)
 data/raw/
 *.mp3
