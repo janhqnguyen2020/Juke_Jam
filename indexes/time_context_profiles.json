@@ -1,0 +1,56 @@
+{
+  "joseph": {
+    "afternoon": {
+      "typical_mood": "neutral",
+      "typical_activity": "study",
+      "top_genres": [
+        "indie",
+        "pop",
+        "show-tunes",
+        "indie-pop",
+        "j-pop"
+      ],
+      "event_count": 17074,
+      "confidence": 0.183
+    },
+    "evening": {
+      "typical_mood": "neutral",
+      "typical_activity": "commute",
+      "top_genres": [
+        "pop",
+        "indie",
+        "show-tunes",
+        "indie-pop",
+        "dance"
+      ],
+      "event_count": 38798,
+      "confidence": 0.415
+    },
+    "morning": {
+      "typical_mood": "neutral",
+      "typical_activity": "commute",
+      "top_genres": [
+        "indie",
+        "show-tunes",
+        "alternative",
+        "pop",
+        "indie-pop"
+      ],
+      "event_count": 6432,
+      "confidence": 0.069
+    },
+    "night": {
+      "typical_mood": "neutral",
+      "typical_activity": "relax",
+      "top_genres": [
+        "indie",
+        "pop",
+        "show-tunes",
+        "indie-pop",
+        "anime"
+      ],
+      "event_count": 31094,
+      "confidence": 0.333
+    }
+  }
+}
