@@ -1,17 +1,17 @@
-user_id,top_genres,preferred_moods,avg_energy_preference,listening_time_profile,skip_rate,platform_mix
-Joseph,"opera,new-age,acoustic","{'happy':0.15,'chill':0.55,'hype':0.05,'sad':0.25}",0.34,"{'morning':0.15,'afternoon':0.45,'night':0.40}",0.08,"{'mobile':0.9,'desktop':0.1}"
-user_1,"Pop,EDM,Dance","{'happy':0.5,'chill':0.2,'hype':0.3}",0.78,"{'morning':0.2,'afternoon':0.3,'night':0.5}",0.12,"{'mobile':0.7,'desktop':0.3}"
-user_2,"Lo-fi,Indie,Acoustic","{'happy':0.2,'chill':0.6,'hype':0.2}",0.35,"{'morning':0.3,'afternoon':0.4,'night':0.3}",0.08,"{'mobile':0.4,'desktop':0.6}"
-user_3,"Hip-Hop,Rap,Trap","{'happy':0.3,'chill':0.2,'hype':0.5}",0.82,"{'morning':0.1,'afternoon':0.3,'night':0.6}",0.25,"{'mobile':0.8,'desktop':0.2}"
-user_4,"Classical,Piano,Instrumental","{'happy':0.1,'chill':0.7,'hype':0.2}",0.25,"{'morning':0.4,'afternoon':0.4,'night':0.2}",0.05,"{'mobile':0.3,'desktop':0.7}"
-user_5,"Rock,Alt Rock,Indie","{'happy':0.3,'chill':0.3,'hype':0.4}",0.65,"{'morning':0.2,'afternoon':0.4,'night':0.4}",0.18,"{'mobile':0.6,'desktop':0.4}"
-user_6,"K-pop,Pop,EDM","{'happy':0.6,'chill':0.1,'hype':0.3}",0.72,"{'morning':0.2,'afternoon':0.3,'night':0.5}",0.15,"{'mobile':0.9,'desktop':0.1}"
-user_7,"Jazz,Soul,R&B","{'happy':0.2,'chill':0.6,'hype':0.2}",0.42,"{'morning':0.3,'afternoon':0.4,'night':0.3}",0.1,"{'mobile':0.5,'desktop':0.5}"
-user_8,"Metal,Hard Rock,Alt Metal","{'happy':0.1,'chill':0.1,'hype':0.8}",0.9,"{'morning':0.05,'afternoon':0.25,'night':0.7}",0.3,"{'mobile':0.6,'desktop':0.4}"
-user_9,"Country,Folk,Acoustic","{'happy':0.4,'chill':0.5,'hype':0.1}",0.38,"{'morning':0.4,'afternoon':0.4,'night':0.2}",0.07,"{'mobile':0.4,'desktop':0.6}"
-user_10,"Techno,House,EDM","{'happy':0.2,'chill':0.2,'hype':0.6}",0.85,"{'morning':0.1,'afternoon':0.2,'night':0.7}",0.22,"{'mobile':0.7,'desktop':0.3}"
-user_11,"Indie,Alt Pop,Pop","{'happy':0.4,'chill':0.4,'hype':0.2}",0.55,"{'morning':0.25,'afternoon':0.35,'night':0.4}",0.12,"{'mobile':0.6,'desktop':0.4}"
-user_12,"Ambient,Lo-fi,Chillhop","{'happy':0.1,'chill':0.8,'hype':0.1}",0.2,"{'morning':0.3,'afternoon':0.5,'night':0.2}",0.04,"{'mobile':0.5,'desktop':0.5}"
-user_13,"Latin,Reggaeton,Pop","{'happy':0.6,'chill':0.2,'hype':0.2}",0.7,"{'morning':0.2,'afternoon':0.3,'night':0.5}",0.14,"{'mobile':0.75,'desktop':0.25}"
-user_14,"R&B,Neo-Soul,Pop","{'happy':0.3,'chill':0.5,'hype':0.2}",0.45,"{'morning':0.25,'afternoon':0.45,'night':0.3}",0.09,"{'mobile':0.6,'desktop':0.4}"
-user_15,"Soundtrack,Instrumental,Ambient","{'happy':0.2,'chill':0.7,'hype':0.1}",0.3,"{'morning':0.4,'afternoon':0.4,'night':0.2}",0.06,"{'mobile':0.3,'desktop':0.7}"
+user_id,top_genres,energy_pref,valence_pref,danceability_pref,acousticness_pref,tempo_pref,mood_bias,activity_preferences,onboarding_source
+joseph,"pop,indie,show-tunes,indie-pop,j-pop",0.648,0.460,0.580,0.218,0.513,"{""happy"":0.21,""chill"":0.039,""hype"":0.119,""sad"":0.173,""focus"":0.459}","commute,relax,study",spotify_export
+user_1,"pop,edm,dance",0.78,0.70,0.75,0.12,0.60,"{""happy"":0.50,""chill"":0.10,""hype"":0.30,""sad"":0.05,""focus"":0.05}","workout,party",manual
+user_2,"indie,acoustic,chill",0.35,0.45,0.50,0.65,0.40,"{""happy"":0.20,""chill"":0.50,""hype"":0.05,""sad"":0.15,""focus"":0.10}","study,relax",manual
+user_3,"hip-hop,r-n-b,dance",0.82,0.55,0.80,0.08,0.55,"{""happy"":0.30,""chill"":0.05,""hype"":0.50,""sad"":0.05,""focus"":0.10}","workout,commute",manual
+user_4,"classical,piano,ambient",0.25,0.30,0.30,0.80,0.35,"{""happy"":0.10,""chill"":0.55,""hype"":0.02,""sad"":0.18,""focus"":0.15}","study,relax",manual
+user_5,"rock,alt-rock,indie",0.65,0.50,0.55,0.25,0.55,"{""happy"":0.30,""chill"":0.15,""hype"":0.35,""sad"":0.10,""focus"":0.10}","commute,workout",manual
+user_6,"k-pop,pop,edm",0.72,0.68,0.78,0.10,0.58,"{""happy"":0.55,""chill"":0.05,""hype"":0.30,""sad"":0.05,""focus"":0.05}","workout,party",manual
+user_7,"jazz,soul,r-n-b",0.42,0.50,0.55,0.40,0.42,"{""happy"":0.20,""chill"":0.45,""hype"":0.10,""sad"":0.15,""focus"":0.10}","relax,study",manual
+user_8,"metal,hard-rock,heavy-metal",0.90,0.35,0.40,0.05,0.70,"{""happy"":0.10,""chill"":0.02,""hype"":0.75,""sad"":0.08,""focus"":0.05}","workout,commute",manual
+user_9,"country,folk,acoustic",0.38,0.55,0.50,0.60,0.42,"{""happy"":0.40,""chill"":0.35,""hype"":0.05,""sad"":0.10,""focus"":0.10}","relax,commute",manual
+user_10,"techno,house,edm",0.85,0.45,0.75,0.05,0.65,"{""happy"":0.20,""chill"":0.05,""hype"":0.60,""sad"":0.05,""focus"":0.10}","workout,party",manual
+user_11,"indie,indie-pop,pop",0.55,0.52,0.58,0.30,0.48,"{""happy"":0.35,""chill"":0.25,""hype"":0.15,""sad"":0.10,""focus"":0.15}","study,commute",manual
+user_12,"ambient,chill,sleep",0.20,0.35,0.35,0.75,0.30,"{""happy"":0.10,""chill"":0.65,""hype"":0.02,""sad"":0.13,""focus"":0.10}","sleep,relax",manual
+user_13,"latin,reggaeton,pop",0.70,0.65,0.78,0.15,0.55,"{""happy"":0.50,""chill"":0.10,""hype"":0.25,""sad"":0.05,""focus"":0.10}","party,workout",manual
+user_14,"r-n-b,soul,pop",0.45,0.48,0.60,0.35,0.45,"{""happy"":0.25,""chill"":0.35,""hype"":0.15,""sad"":0.15,""focus"":0.10}","relax,commute",manual
+user_15,"ambient,classical,piano",0.30,0.35,0.32,0.70,0.35,"{""happy"":0.15,""chill"":0.50,""hype"":0.02,""sad"":0.13,""focus"":0.20}","study,sleep",manual

@@ -1,8 +1,20 @@
 {
   "joseph": {
     "afternoon": {
-      "typical_mood": "neutral",
+      "typical_mood": "focus",
+      "mood_distribution": {
+        "focus": 0.465,
+        "happy": 0.193,
+        "sad": 0.153,
+        "hype": 0.141,
+        "chill": 0.048
+      },
       "typical_activity": "study",
+      "activity_distribution": {
+        "study": 0.746,
+        "commute": 0.157,
+        "workout": 0.097
+      },
       "top_genres": [
         "indie",
         "pop",
@@ -10,12 +22,25 @@
         "indie-pop",
         "j-pop"
       ],
-      "event_count": 17074,
-      "confidence": 0.183
+      "event_count": 497,
+      "confidence": 0.196
     },
     "evening": {
-      "typical_mood": "neutral",
+      "typical_mood": "focus",
+      "mood_distribution": {
+        "focus": 0.483,
+        "happy": 0.205,
+        "sad": 0.178,
+        "hype": 0.091,
+        "chill": 0.043
+      },
       "typical_activity": "commute",
+      "activity_distribution": {
+        "commute": 0.861,
+        "relax": 0.053,
+        "workout": 0.049,
+        "study": 0.037
+      },
       "top_genres": [
         "pop",
         "indie",
@@ -23,25 +48,50 @@
         "indie-pop",
         "dance"
       ],
-      "event_count": 38798,
-      "confidence": 0.415
+      "event_count": 1117,
+      "confidence": 0.44
     },
     "morning": {
-      "typical_mood": "neutral",
+      "typical_mood": "focus",
+      "mood_distribution": {
+        "focus": 0.489,
+        "sad": 0.23,
+        "happy": 0.185,
+        "hype": 0.052,
+        "chill": 0.044
+      },
       "typical_activity": "commute",
+      "activity_distribution": {
+        "commute": 0.822,
+        "workout": 0.096,
+        "study": 0.044,
+        "relax": 0.037
+      },
       "top_genres": [
         "indie",
+        "pop",
         "show-tunes",
         "alternative",
-        "pop",
         "indie-pop"
       ],
-      "event_count": 6432,
-      "confidence": 0.069
+      "event_count": 135,
+      "confidence": 0.053
     },
     "night": {
-      "typical_mood": "neutral",
+      "typical_mood": "focus",
+      "mood_distribution": {
+        "focus": 0.416,
+        "happy": 0.234,
+        "sad": 0.168,
+        "hype": 0.156,
+        "chill": 0.027
+      },
       "typical_activity": "relax",
+      "activity_distribution": {
+        "relax": 0.898,
+        "workout": 0.084,
+        "commute": 0.018
+      },
       "top_genres": [
         "indie",
         "pop",
@@ -49,8 +99,8 @@
         "indie-pop",
         "anime"
       ],
-      "event_count": 31094,
-      "confidence": 0.333
+      "event_count": 788,
+      "confidence": 0.311
     }
   }
 }

@@ -1,4 +1,4 @@
-user_id,session_id,self_reported_mood,activity_type,timestamp_start,timestamp_end
+user_id,session_id,inferred_session_mood,activity_type,timestamp_start,timestamp_end
 joseph,0,neutral,study,2021-07-11 16:20:48+00:00,2021-07-11 16:21:37+00:00
 joseph,1,neutral,commute,2021-07-11 18:47:06+00:00,2021-07-11 18:51:55+00:00
 joseph,2,neutral,commute,2021-07-12 07:38:46+00:00,2021-07-12 09:21:39+00:00
