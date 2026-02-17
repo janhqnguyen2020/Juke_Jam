@@ -141,20 +141,20 @@ def genre_fallback_features(genres: list[str]) -> list[dict]:
 
 
 # ---- Mood classification (matches SONG_CATALOG thresholds) ----
-def classify_mood(energy: float, valence: float) -> str:
+def classify_mood(energy: float, valence: float,
+                  acousticness: float = 0.0, tempo: float = 120.0) -> str:
     """
-    same logic as mood_bucket() in clean_redo_data.ipynb
-    keeps onboarding profiles consistent with catalog labels
+    Mirrors mood_bucket() in clean_REDO_Data.ipynb exactly.
+    Condition order and thresholds must stay in sync with the catalog.
     """
-
     if valence > 0.6 and energy > 0.6:
         return "happy"
     elif valence < 0.4 and energy < 0.5:
         return "sad"
-    elif energy > 0.7 and valence > 0.3:
-        return "hype"
-    elif energy < 0.4:
+    elif acousticness > 0.5 and energy < 0.5:
         return "chill"
+    elif energy > 0.75 and tempo > 120:
+        return "hype"
     else:
         return "focus"
     
@@ -208,7 +208,7 @@ def build_spotify_profile(user_id: str, top_artists: dict, features: list[dict],
     # Mood bias: classify each track, compute distribution
     mood_counts = {"happy": 0, "sad": 0, "hype": 0, "chill": 0, "focus": 0}
     for f in features:
-        mood = classify_mood(f["energy"], f["valence"])
+        mood = classify_mood(f["energy"], f["valence"], f.get("acousticness", 0.0), f.get("tempo", 120.0))
         mood_counts[mood] += 1
     total = sum(mood_counts.values())
     mood_bias = {k: round(v / total, 3) for k, v in mood_counts.items()}
