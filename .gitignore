@@ -48,3 +48,7 @@ data/raw/Personal Data/Joseph/
 
 # Keep processed outputs in git
 !data/processed/
+
+# Unused frontend directories
+frontend-web/
+frontend/
