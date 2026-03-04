@@ -80,11 +80,9 @@ async def callback(code: str):
 
     #step 4: build profile dict, save to csv
     profile = build_spotify_profile(user_id, top_artists, features, catalog_genres)
+    # Default all activities so the home feed has context from day one
+    profile["activity_preferences"] = "workout,study,commute,relax,party,sleep"
     save_profile(profile)
 
-    return {
-        "message": f"Onboarding successful! Profile created from Spotify data. Created for {user_id}",
-        "profile": profile,
-        "needs_activities": True,
-        "next_step": "/profile/activities",
-    }
+    # Redirect to frontend home — user_id passed as query param for localStorage
+    return RedirectResponse(f"http://localhost:3000/home?user_id={user_id}")
