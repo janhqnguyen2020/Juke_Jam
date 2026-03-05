@@ -1,10 +1,12 @@
+import { Dumbbell, BookOpen, Bus, Sofa, PartyPopper, Moon } from "lucide-react"
+
 const ACTIVITIES = [
-  { label: "Workout",  icon: "🏋️" },
-  { label: "Study",    icon: "📚" },
-  { label: "Relax",    icon: "🛋️" },
-  { label: "Commute",  icon: "🚌" },
-  { label: "Party",    icon: "🎉" },
-  { label: "Sleep",    icon: "😴" },
+  { label: "Workout", icon: Dumbbell },
+  { label: "Study",   icon: BookOpen },
+  { label: "Relax",   icon: Sofa },
+  { label: "Commute", icon: Bus },
+  { label: "Party",   icon: PartyPopper },
+  { label: "Sleep",   icon: Moon },
 ]
 
 interface Props {
@@ -13,21 +15,20 @@ interface Props {
 }
 
 export default function ActivityStep({ formData, setFormData }: Props) {
-  const toggle = (activity: string) => {
+  const toggle = (label: string) => {
     const selected: string[] = formData.activities
-    if (!selected.includes(activity) && selected.length >= 3) return
+    if (!selected.includes(label) && selected.length >= 3) return
     setFormData({
       ...formData,
-      activities: selected.includes(activity)
-        ? selected.filter((a) => a !== activity)
-        : [...selected, activity],
+      activities: selected.includes(label)
+        ? selected.filter((a) => a !== label)
+        : [...selected, label],
     })
   }
 
   return (
     <div className="flex flex-col gap-3">
 
-      {/* Title + instruction on same line */}
       <div className="flex items-baseline justify-between px-[20px]">
         <h2 className="text-[40px] font-bold text-jukeDark">Activities Selection</h2>
         <p className="text-jukeDark/60 text-[24px]">Select at most 3</p>
@@ -42,13 +43,13 @@ export default function ActivityStep({ formData, setFormData }: Props) {
             <button
               key={activity.label}
               onClick={() => toggle(activity.label)}
-              className={`flex flex-col items-center gap-[8px] py-8 rounded-[28px] border-2 transition-all ${
+              className={`flex flex-col items-center gap-[12px] py-8 rounded-[28px] border-2 transition-all ${
                 active
                   ? "bg-jukeRed border-jukeRed text-white shadow-[0_0_14px_rgba(157,75,75,0.4)]"
                   : "bg-white border-jukeDark/20 text-jukeDark hover:border-jukeRed"
               }`}
             >
-              <span className="text-8xl">{activity.icon}</span>
+              <activity.icon size={48} strokeWidth={1.75} />
               <span className="text-[26px] font-semibold">{activity.label}</span>
             </button>
           )

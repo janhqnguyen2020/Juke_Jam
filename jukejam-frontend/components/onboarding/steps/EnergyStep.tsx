@@ -36,7 +36,7 @@ export default function EnergyStep({ formData, setFormData }: Props) {
           onChange={(e) =>
             setFormData({ ...formData, energy: parseFloat(e.target.value) })
           }
-          className="w-[96%] accent-jukeRed h-3 gap-[10px] px-[30px]"
+          className="w-full accent-jukeRed h-2 rounded-lg"
         />
 
         <div className="flex justify-between text-[24px] px-[20px] gap-[10px] font-semibold text-jukeDark">

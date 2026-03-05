@@ -1,8 +1,25 @@
+"use client"
+
+import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { SplitScreen } from "@/components/layout/SplitScreen"
-import Link from "next/link"
 import Image from "next/image"
 
 export default function LoginPage() {
+  const router = useRouter()
+  const [username, setUsername] = useState("")
+  const [error,    setError]    = useState("")
+
+  const handleLogin = () => {
+    const id = username.trim()
+    if (!id) {
+      setError("Please enter a username.")
+      return
+    }
+    localStorage.setItem("user_id", id)
+    router.push("/home")
+  }
+
   return (
     <SplitScreen
       left={
@@ -18,7 +35,7 @@ export default function LoginPage() {
               Welcome back to JukeJam
             </h1>
           </div>
-          </div>
+        </div>
       }
       right={
         <div className="flex flex-col items-center justify-start pt-16 h-full w-full px-10">
@@ -33,47 +50,51 @@ export default function LoginPage() {
             priority
           />
 
-          {/* Staff */}
-                <div className="flex flex-col items-center text-center">
-                  <h3 className="mt-0 text-[30px] text-jukeCream font-medium leading-tight drop-shadow-lg">
-                  Recommendations that hit the right note, every time 
-                  </h3>
-          
-                  <Image
-                    src="/icons/musicStaffLanding.svg"
-                    alt="Person, Task, Time"
-                    width={620}
-                    height={320}
-                    className="w-[620px] h-auto justify-center items-center drop-shadow-lg"
-                  />
-                </div>
-
-          {/* Form */}
-          <div className="flex flex-col gap-[10px] w-full max-w-[700px]">
-            <input
-              type="text"
-              placeholder="  Username"
-              className="w-full rounded-full px-6 py-[20px] text-jukeDark bg-jukeCream placeholder-jukeDark/[50px] outline-none text-base"
-            />
-            <input
-              type="password"
-              placeholder="   Password"
-              className="w-full rounded-full px-6 py-[20px] text-jukeDark bg-jukeCream placeholder-jukeDark/[50px] outline-none text-base"
+          {/* Staff graphic */}
+          <div className="flex flex-col items-center text-center">
+            <h3 className="mt-0 text-[30px] text-jukeCream font-medium leading-tight drop-shadow-lg">
+              Recommendations that hit the right note, every time
+            </h3>
+            <Image
+              src="/icons/musicStaffLanding.svg"
+              alt="Person, Task, Time"
+              width={620}
+              height={320}
+              className="w-[620px] h-auto justify-center items-center drop-shadow-lg"
             />
           </div>
 
+          {/* Username form */}
+          <div className="flex flex-col gap-[10px] w-full max-w-[700px]">
+            <input
+              type="text"
+              placeholder="Username"
+              value={username}
+              onChange={(e) => { setUsername(e.target.value); setError("") }}
+              onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+              className="rounded-full px-[24px] py-5 text-[32px] text-jukeDark bg-jukeCream border-2 border-jukeDark/20 outline-none focus:border-jukeRed placeholder-jukeDark/40 transition-all"
+            />
+            {error && (
+              <p className="text-jukeRed text-sm text-center">{error}</p>
+            )}
+          </div>
+
           <div className="flex w-full max-w-[700px] justify-center items-center mt-[10px]">
-            <button className="w-[300px] bg-jukeDark hover:bg-black text-jukeCream rounded-full py-[15px] text-[24px] font-bold transition-all duration-200">
+            <button
+              onClick={handleLogin}
+              disabled={!username.trim()}
+              className="w-[300px] bg-jukeDark hover:bg-black text-jukeCream rounded-full py-[15px] text-[24px] font-bold transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
               Log In
             </button>
           </div>
 
-          {/* Footer link */}
-          <p className="w-[350px] bg-jukeDark hover:bg-black text-jukeCream rounded-full py-[20px] text-[30px] font-bold">
+          {/* Footer */}
+          <p className="mt-6 text-jukeCream text-[24px]">
             No account?{" "}
-            <Link href="/onboarding/spotify" className="underline text-jukeDark font-medium">
+            <a href="http://localhost:8000/spotify/login" className="underline font-bold text-jukeCream hover:text-jukeCream/80">
               Start Jammin
-            </Link>
+            </a>
           </p>
 
         </div>

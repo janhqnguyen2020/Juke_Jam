@@ -1,5 +1,5 @@
 user_id,top_genres,energy_pref,valence_pref,danceability_pref,acousticness_pref,tempo_pref,mood_bias,activity_preferences,onboarding_source
-joseph,"pop,indie,show-tunes,indie-pop,j-pop",0.648,0.460,0.580,0.218,0.513,"{""happy"":0.21,""chill"":0.039,""hype"":0.119,""sad"":0.173,""focus"":0.459}","commute,relax,study",spotify_export
+joseph,"pop,hip-hop,electronic",0.3,0.3,0.3,0.12,0.68,"{""happy"": 0.138, ""sad"": 0.138, ""hype"": 0.138, ""chill"": 0.45, ""focus"": 0.138}","relax,study",manual
 user_1,"pop,edm,dance",0.78,0.70,0.75,0.12,0.60,"{""happy"":0.50,""chill"":0.10,""hype"":0.30,""sad"":0.05,""focus"":0.05}","workout,party",manual
 user_2,"indie,acoustic,chill",0.35,0.45,0.50,0.65,0.40,"{""happy"":0.20,""chill"":0.50,""hype"":0.05,""sad"":0.15,""focus"":0.10}","study,relax",manual
 user_3,"hip-hop,r-n-b,dance",0.82,0.55,0.80,0.08,0.55,"{""happy"":0.30,""chill"":0.05,""hype"":0.50,""sad"":0.05,""focus"":0.10}","workout,commute",manual
@@ -15,5 +15,6 @@ user_12,"ambient,chill,sleep",0.20,0.35,0.35,0.75,0.30,"{""happy"":0.10,""chill"
 user_13,"latin,reggaeton,pop",0.70,0.65,0.78,0.15,0.55,"{""happy"":0.50,""chill"":0.10,""hype"":0.25,""sad"":0.05,""focus"":0.10}","party,workout",manual
 user_14,"r-n-b,soul,pop",0.45,0.48,0.60,0.35,0.45,"{""happy"":0.25,""chill"":0.35,""hype"":0.15,""sad"":0.15,""focus"":0.10}","relax,commute",manual
 user_15,"ambient,classical,piano",0.30,0.35,0.32,0.70,0.35,"{""happy"":0.15,""chill"":0.50,""hype"":0.02,""sad"":0.13,""focus"":0.20}","study,sleep",manual
-31iez37uhahdm3fifytnkmrf4d3i,"latino,dance,show-tunes,electro,j-pop",0.647,0.463,0.65,0.244,0.485,"{""happy"": 0.263, ""sad"": 0.177, ""hype"": 0.086, ""chill"": 0.037, ""focus"": 0.436}",,spotify_oauth
+31iez37uhahdm3fifytnkmrf4d3i,"latino,show-tunes,j-pop,dance,electro",0.663,0.481,0.67,0.225,0.481,"{""happy"": 0.284, ""sad"": 0.142, ""hype"": 0.083, ""chill"": 0.039, ""focus"": 0.451}","workout,study,commute,relax,party,sleep",spotify_oauth
 string,string,0.55,0.5,0.55,0.4,0.5,"{""happy"": 0.138, ""sad"": 0.138, ""hype"": 0.138, ""chill"": 0.138, ""focus"": 0.45}",,manual
+jbrkbaitt0idz5u4wdy60wsyn,,0.681,0.568,0.692,0.308,0.471,"{""happy"": 0.286, ""sad"": 0.0, ""hype"": 0.143, ""chill"": 0.143, ""focus"": 0.429}",,spotify_oauth

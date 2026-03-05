@@ -5,10 +5,12 @@ All HTTP communication calls to spotify live here
 routes never touch httpx directly - they call these functions instead
 """
 
-import os # for env vars
+import os
+import time
+import base64
 
-import httpx # for http calls
-from fastapi import HTTPException # for error handling
+import httpx
+from fastapi import HTTPException
 
 # ---- spotify credentials from .env ----
 CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
@@ -76,6 +78,41 @@ async def get_top_artists(token: str, time_range: str = "medium_term", limit: in
     return await spotify_get("/me/top/artists",
                              token, {"time_range": time_range,
                                      "limit": limit}, )
+
+# ── Client Credentials (no user login needed) ──────────────────────────────────
+_client_token: str | None = None
+_token_expires_at: float = 0.0
+
+async def get_client_token() -> str:
+    """Get/refresh an app-level token using Client Credentials flow."""
+    global _client_token, _token_expires_at
+    if _client_token and time.time() < _token_expires_at - 60:
+        return _client_token
+    credentials = base64.b64encode(f"{CLIENT_ID}:{CLIENT_SECRET}".encode()).decode()
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            TOKEN_URL,
+            headers={"Authorization": f"Basic {credentials}"},
+            data={"grant_type": "client_credentials"},
+        )
+    if response.status_code != 200:
+        raise HTTPException(500, f"Client credentials failed: {response.text}")
+    data = response.json()
+    _client_token = data["access_token"]
+    _token_expires_at = time.time() + data["expires_in"]
+    return _client_token
+
+async def get_track_art(track_id: str) -> str | None:
+    """Return the 300×300 album art URL for a track, or None on any error."""
+    try:
+        token = await get_client_token()
+        data = await spotify_get(f"/tracks/{track_id}", token)
+        images = data.get("album", {}).get("images", [])
+        if len(images) >= 2:
+            return images[1]["url"]   # index 1 = 300×300
+        return images[0]["url"] if images else None
+    except Exception:
+        return None
 
 async def get_audio_features(token: str, track_ids: list[str]):
     """

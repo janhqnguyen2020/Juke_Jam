@@ -21,10 +21,10 @@ export default function AcousticStep({ formData, setFormData }: Props) {
 
       <hr className="border-jukeRed w-full" />
 
-      <div className="flex flex-col gap-5 mt-2 px-4">
+      <div className="flex flex-col gap-5 mt-2 px-[20px]">
         <div className="flex justify-between items-end">
-          <span className="text-jukeDark/50 text-[36px] font-medium py-[10px] px-[20px]">Acousticness level</span>
-          <span className="text-jukeRed font-extrabold text-[32px] px-[10px]">{pct}%</span>
+          <span className="text-jukeDark/50 text-[40px] font-bold">Acousticness level</span>
+          <span className="text-jukeRed font-extrabold text-[32px]">{pct}%</span>
         </div>
 
         <input
@@ -36,7 +36,7 @@ export default function AcousticStep({ formData, setFormData }: Props) {
           onChange={(e) =>
             setFormData({ ...formData, acousticness: parseFloat(e.target.value) })
           }
-          className="w-[96%] accent-jukeRed h-3 gap-[10px] px-[30px]"
+          className="w-full accent-jukeRed h-2 rounded-lg"
         />
 
         <div className="flex justify-between text-[24px] px-[20px] gap-[10px] font-semibold text-jukeDark">

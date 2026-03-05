@@ -13,7 +13,7 @@ from fastapi.responses import RedirectResponse
 
 from services.spotify_client import (
     exchange_code_for_token, get_current_user,
-    get_top_artists, get_top_tracks,
+    get_top_artists, get_top_tracks, get_track_art,
 )
 
 from services.profile_builder import (
@@ -86,3 +86,11 @@ async def callback(code: str):
 
     # Redirect to frontend home — user_id passed as query param for localStorage
     return RedirectResponse(f"http://localhost:3000/home?user_id={user_id}")
+
+# ---- Route 3: Album art proxy ----
+@router.get("/art/{track_id}")
+async def track_art(track_id: str):
+    url = await get_track_art(track_id)
+    if not url:
+        raise HTTPException(404, "Album art not found")
+    return {"url": url}

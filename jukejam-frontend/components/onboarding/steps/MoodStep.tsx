@@ -1,9 +1,11 @@
+import { Smile, Frown, Coffee, Target, Flame } from "lucide-react"
+
 const MOODS = [
-  { label: "Happy",  emoji: "😊" },
-  { label: "Sad",    emoji: "😢" },
-  { label: "Chill",  emoji: "😌" },
-  { label: "Focus",  emoji: "🎯" },
-  { label: "Hype",   emoji: "🔥" },
+  { label: "Happy", icon: Smile  },
+  { label: "Sad",   icon: Frown  },
+  { label: "Chill", icon: Coffee },
+  { label: "Focus", icon: Target },
+  { label: "Hype",  icon: Flame  },
 ]
 
 interface Props {
@@ -15,7 +17,6 @@ export default function MoodStep({ formData, setFormData }: Props) {
   return (
     <div className="flex flex-col gap-3">
 
-      {/* Title + instruction on same line */}
       <div className="flex items-baseline justify-between px-[20px]">
         <h2 className="text-[40px] font-bold text-jukeDark">Mood Preference</h2>
         <p className="text-jukeDark/60 text-[24px]">Select the mood that best describes you</p>
@@ -36,7 +37,7 @@ export default function MoodStep({ formData, setFormData }: Props) {
                   : "bg-white border-jukeDark text-jukeDark hover:border-jukeRed"
               }`}
             >
-              <span className="text-8xl">{mood.emoji}</span>
+              <mood.icon size={48} strokeWidth={1.75} />
               <span className="text-[26px] font-semibold">{mood.label}</span>
             </button>
           )

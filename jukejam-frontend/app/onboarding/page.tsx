@@ -1,5 +1,4 @@
 import { SplitScreen } from "@/components/layout/SplitScreen"
-import Link from "next/link"
 import Image from "next/image"
 
 export default function LoginPage() {
@@ -49,18 +48,18 @@ export default function LoginPage() {
                 </div>
 
             {/* buttons to onboard */}
-            <div className="flex gap-[40px] mt-[20px]" >
-              <Link href="/onboarding/spotify">
+            <div className="flex gap-[40px] mt-[20px]">
+              <a href="http://localhost:8000/spotify/login">
                 <button className="w-[350px] bg-jukeDark hover:bg-black text-jukeCream rounded-full py-[20px] text-[30px] font-bold">
                   Connect Spotify
                 </button>
-              </Link>
+              </a>
 
-              <Link href="/onboarding/manual">
+              <a href="/onboarding/manual">
                 <button className="w-[350px] bg-jukeDark hover:bg-black text-jukeCream rounded-full py-[20px] text-[30px] font-bold">
                   Manually Create
                 </button>
-              </Link>
+              </a>
             </div>
 
 
