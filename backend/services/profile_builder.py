@@ -5,6 +5,8 @@ converts raw spotify data or quiz answers into a structured USER_PROFILE.
 All profile building logic lives here - routes just call these functions
 """
 
+from __future__ import annotations
+
 import csv # for reading/writing csv files
 import json # for reading/writing json files
 import statistics # for calculating averages

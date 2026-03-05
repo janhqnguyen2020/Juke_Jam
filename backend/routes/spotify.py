@@ -60,8 +60,6 @@ async def callback(code: str):
     top_tracks = await get_top_tracks(access_token)
 
     track_ids = [t["id"] for t in top_tracks.get("items", [])]
-    if not track_ids:
-        raise HTTPException(400, "No top tracks found for user. Listen to more music first!")
 
     #step 3: look up audio features from our own catalog (Spotify API blocked this)
     # fallback chain: track_id match -> artist name match -> genre averages

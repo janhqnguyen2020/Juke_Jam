@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Spotify API Communication layer
 
