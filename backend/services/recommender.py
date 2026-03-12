@@ -17,6 +17,7 @@ import csv
 import json
 import math
 from collections import defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
 
 # ── Paths (relative to this file's location) ───────────────────────────────────
@@ -25,6 +26,7 @@ _INDEXES_PATH      = _BASE / "indexes" / "indexes.json"
 _TIME_CONTEXT_PATH = _BASE / "indexes" / "time_context_profiles.json"
 _CATALOG_PATH      = _BASE / "data" / "processed" / "SONG_CATALOG.csv"
 _PROFILE_PATH      = _BASE / "data" / "processed" / "USER_PROFILE.csv"
+_EVENTS_PATH       = _BASE / "data" / "processed" / "user_events.csv"
 
 # These are empty dicts/lists at import time.
 # load_all() fills them at app startup so every request is fast.
@@ -43,6 +45,8 @@ _song_audio_vecs: dict = {}   # track_id → {energy, danceability, valence, aco
 _catalog:         dict = {}   # track_id → full CSV row dict (for result enrichment)
 _user_profiles:   dict = {}   # user_id (lowercased) → profile dict
 _time_context:    dict = {}   # user_id → {time_of_day: {typical_mood, top_genres, ...}}
+_skip_scores:     dict = {}   # user_id → {track_id: decay-weighted skip score}
+_recency_scores:  dict = {}   # user_id → {track_id: decay-weighted play score}
 
 _loaded = False
 
@@ -90,7 +94,8 @@ def load_all():
     """
     global _genre_index, _main_genre_index, _mood_index, _energy_index
     global _artist_index, _title_index, _features, _feature_inds, _idf
-    global _song_vectors, _song_audio_vecs, _catalog, _user_profiles, _time_context, _loaded
+    global _song_vectors, _song_audio_vecs, _catalog, _user_profiles, _time_context
+    global _skip_scores, _recency_scores, _loaded
 
     if _loaded:
         return
@@ -205,6 +210,57 @@ def load_all():
     with open(_TIME_CONTEXT_PATH, encoding="utf-8") as f:
         _time_context = json.load(f)
     print(f"[RECOMMENDER] Time context: {len(_time_context)} users")
+
+    # ── Load user events → skip + recency signals ──────────────────────────────
+    # skip_scores:   higher = user has skipped this song more recently/often
+    # recency_scores: higher = user has completed/liked this song more recently/often
+    # Temporal decay: weight = e^(-0.03 * days_since)  → half-life ≈ 23 days
+    # so a skip from yesterday hits hard; a skip from 6 months ago is ~0.16x weight
+    _skip_raw:    dict = defaultdict(lambda: defaultdict(float))
+    _recency_raw: dict = defaultdict(lambda: defaultdict(float))
+
+    now = datetime.now(timezone.utc)
+
+    if _EVENTS_PATH.exists():
+        with open(_EVENTS_PATH, newline="", encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                uid = row.get("user_id", "").strip().lower()
+                sid = row.get("spotify_id", "").strip()
+                if not uid or not sid:
+                    continue
+
+                # Parse timestamp for decay
+                ts_str = row.get("timestamp", "").strip()
+                try:
+                    ts = datetime.fromisoformat(ts_str)
+                    if ts.tzinfo is None:
+                        ts = ts.replace(tzinfo=timezone.utc)
+                    days_since = max(0.0, (now - ts).total_seconds() / 86400)
+                except (ValueError, AttributeError):
+                    days_since = 365.0
+
+                decay = math.exp(-0.03 * days_since)
+
+                skipped      = row.get("skipped", "").strip().lower() == "true"
+                like_str     = row.get("like_proxy", "").strip()
+                like_proxy   = int(like_str) if like_str else None
+                comp_str     = row.get("completion_ratio", "").strip()
+                completion   = float(comp_str) if comp_str else 0.0
+
+                # Negative signal: explicit skip OR like_proxy == 0
+                if skipped or like_proxy == 0:
+                    _skip_raw[uid][sid] += decay
+
+                # Positive/recency signal: completed or highly played
+                if like_proxy == 1 or completion >= 0.8:
+                    _recency_raw[uid][sid] += decay
+
+        print(f"[RECOMMENDER] Events loaded for {len(_skip_raw)} users")
+    else:
+        print("[RECOMMENDER] No user_events.csv found — skip/recency signals disabled")
+
+    _skip_scores    = {uid: dict(songs) for uid, songs in _skip_raw.items()}
+    _recency_scores = {uid: dict(songs) for uid, songs in _recency_raw.items()}
 
     _loaded = True
     print("[RECOMMENDER] Ready.")
@@ -452,6 +508,15 @@ def rank_songs(
         if profile_genres:
             candidates = retrieve_candidates(genres=profile_genres)
 
+    # Cold start fallback: user unknown or no candidates → use top-popular songs
+    if not candidates:
+        popular = sorted(
+            _catalog.keys(),
+            key=lambda s: int(_catalog[s].get("popularity", 0) or 0),
+            reverse=True,
+        )[:500]
+        candidates = popular
+
     if not candidates:
         return []
 
@@ -473,10 +538,33 @@ def rank_songs(
         time_of_day=time_of_day,
     )
 
+    # Cold start: no query vec (new user, no filters) → rank purely by popularity
     if not query_vec:
-        return []
+        popular_results = []
+        for sid in sorted(
+            candidates,
+            key=lambda s: int(_catalog.get(str(s), {}).get("popularity", 0) or 0),
+            reverse=True,
+        )[:top_k]:
+            row = _catalog.get(str(sid), {})
+            popular_results.append({
+                "track_id":     str(sid),
+                "score":        round(int(row.get("popularity", 0) or 0) / 100, 4),
+                "title":        row.get("title", "Unknown"),
+                "artist":       row.get("artist_name", "Unknown"),
+                "genre":        row.get("genre", "Unknown"),
+                "main_genre":   row.get("main_genre", "Unknown"),
+                "mood":         row.get("mood_bucket", "Unknown"),
+                "energy_label": row.get("energy_label", "Unknown"),
+                "popularity":   int(row.get("popularity", 0) or 0),
+            })
+        return popular_results
 
     # ── Score every candidate ──────────────────────────────────────────────────
+    uid_lower = user_id.lower() if user_id else ""
+    user_skips    = _skip_scores.get(uid_lower, {})
+    user_recency  = _recency_scores.get(uid_lower, {})
+
     scored = []
     for song_id in candidates:
         sid = str(song_id)
@@ -497,6 +585,19 @@ def rank_songs(
         else:
             score = 0.85 * tfidf + 0.15 * pop_norm
 
+        # Skip penalty: cap at 0.30 so heavily-skipped songs drop but aren't zero'd
+        # Formula: penalty = min(skip_score * 0.20, 0.30)
+        # A single recent skip (decay≈1.0) → -0.20; two recent skips → -0.30 (capped)
+        skip_raw = user_skips.get(sid, 0.0)
+        skip_penalty = min(skip_raw * 0.20, 0.30)
+
+        # Novelty penalty: lightly penalise songs the user has fully played recently
+        # so fresh tracks get a fair chance on repeat sessions
+        # Formula: penalty = min(recency_score * 0.05, 0.10)
+        recency_raw = user_recency.get(sid, 0.0)
+        novelty_penalty = min(recency_raw * 0.05, 0.10)
+
+        score = score - skip_penalty - novelty_penalty
         scored.append((sid, score))
 
     scored.sort(key=lambda x: x[1], reverse=True)
