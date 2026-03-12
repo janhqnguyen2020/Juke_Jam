@@ -26,7 +26,8 @@ _INDEXES_PATH      = _BASE / "indexes" / "indexes.json"
 _TIME_CONTEXT_PATH = _BASE / "indexes" / "time_context_profiles.json"
 _CATALOG_PATH      = _BASE / "data" / "processed" / "SONG_CATALOG.csv"
 _PROFILE_PATH      = _BASE / "data" / "processed" / "USER_PROFILE.csv"
-_EVENTS_PATH       = _BASE / "data" / "processed" / "user_events.csv"
+_EVENTS_PATH           = _BASE / "data" / "processed" / "user_events.csv"
+_SESSION_FEATURES_PATH = _BASE / "data" / "processed" / "session_features.csv"
 
 # These are empty dicts/lists at import time.
 # load_all() fills them at app startup so every request is fast.
@@ -45,8 +46,9 @@ _song_audio_vecs: dict = {}   # track_id → {energy, danceability, valence, aco
 _catalog:         dict = {}   # track_id → full CSV row dict (for result enrichment)
 _user_profiles:   dict = {}   # user_id (lowercased) → profile dict
 _time_context:    dict = {}   # user_id → {time_of_day: {typical_mood, top_genres, ...}}
-_skip_scores:     dict = {}   # user_id → {track_id: decay-weighted skip score}
-_recency_scores:  dict = {}   # user_id → {track_id: decay-weighted play score}
+_skip_scores:          dict = {}   # user_id → {track_id: depth+decay-weighted skip score}
+_recency_scores:       dict = {}   # user_id → {track_id: decay-weighted play score}
+_user_activity_profiles: dict = {} # user_id → {activity → {feature → avg_value}}
 
 _loaded = False
 
@@ -95,7 +97,7 @@ def load_all():
     global _genre_index, _main_genre_index, _mood_index, _energy_index
     global _artist_index, _title_index, _features, _feature_inds, _idf
     global _song_vectors, _song_audio_vecs, _catalog, _user_profiles, _time_context
-    global _skip_scores, _recency_scores, _loaded
+    global _skip_scores, _recency_scores, _user_activity_profiles, _loaded
 
     if _loaded:
         return
@@ -211,16 +213,46 @@ def load_all():
         _time_context = json.load(f)
     print(f"[RECOMMENDER] Time context: {len(_time_context)} users")
 
-    # ── Load user events → skip + recency signals ──────────────────────────────
-    # skip_scores:   higher = user has skipped this song more recently/often
-    # recency_scores: higher = user has completed/liked this song more recently/often
-    # Temporal decay: weight = e^(-0.03 * days_since)  → half-life ≈ 23 days
-    # so a skip from yesterday hits hard; a skip from 6 months ago is ~0.16x weight
+    # ── Load user events → skip + recency + per-user activity profiles ────────
+    #
+    # Differentiated decay rates (skips fade faster because taste changes):
+    #   skip decay:    e^(-0.05 * days)  half-life ≈ 14 days
+    #   recency decay: e^(-0.02 * days)  half-life ≈ 35 days
+    #
+    # Skip depth multiplier (how far into the song before skipping):
+    #   < 5 s  → 1.5×  (rage skip — strong dislike signal)
+    #   < 20 s → 1.0×  (standard skip)
+    #   ≥ 20 s → 0.5×  (gave it a real chance — weaker signal)
+    #
+    # Per-user activity profiles: for each completed play we know the session
+    # activity (from session_features.csv). Averaging audio features over those
+    # plays gives user-specific activity profiles that replace the global ones.
     _skip_raw:    dict = defaultdict(lambda: defaultdict(float))
     _recency_raw: dict = defaultdict(lambda: defaultdict(float))
 
+    # Accumulators for per-user activity audio profiles
+    # {uid: {activity: {feature: sum, _n: count}}}
+    act_sums:   dict = defaultdict(lambda: defaultdict(lambda: defaultdict(float)))
+    act_counts: dict = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+
     now = datetime.now(timezone.utc)
 
+    # Step A: build session_id → activity map from session_features.csv
+    # keyed by (user_id, session_id) because session IDs may not be globally unique
+    session_activity: dict = {}
+    if _SESSION_FEATURES_PATH.exists():
+        with open(_SESSION_FEATURES_PATH, newline="", encoding="utf-8") as f:
+            for srow in csv.DictReader(f):
+                try:
+                    s_uid = srow.get("user_id", "").strip().lower()
+                    s_act = srow.get("activity_type", "").strip().lower()
+                    s_id  = int(srow.get("session_id", ""))
+                    if s_act in VALID_ACTIVITIES:
+                        session_activity[(s_uid, s_id)] = s_act
+                except (ValueError, TypeError):
+                    pass
+
+    # Step B: process play events
     if _EVENTS_PATH.exists():
         with open(_EVENTS_PATH, newline="", encoding="utf-8") as f:
             for row in csv.DictReader(f):
@@ -239,21 +271,47 @@ def load_all():
                 except (ValueError, AttributeError):
                     days_since = 365.0
 
-                decay = math.exp(-0.03 * days_since)
+                skip_decay    = math.exp(-0.05 * days_since)
+                recency_decay = math.exp(-0.02 * days_since)
 
-                skipped      = row.get("skipped", "").strip().lower() == "true"
-                like_str     = row.get("like_proxy", "").strip()
-                like_proxy   = int(like_str) if like_str else None
-                comp_str     = row.get("completion_ratio", "").strip()
-                completion   = float(comp_str) if comp_str else 0.0
+                skipped    = row.get("skipped", "").strip().lower() == "true"
+                like_str   = row.get("like_proxy", "").strip()
+                like_proxy = int(like_str) if like_str else None
+                comp_str   = row.get("completion_ratio", "").strip()
+                completion = float(comp_str) if comp_str else 0.0
+
+                ms_str   = row.get("ms_played", "").strip()
+                ms_played = int(ms_str) if ms_str else 0
 
                 # Negative signal: explicit skip OR like_proxy == 0
+                # Depth multiplier: rage skip (< 5 s) hits hardest
                 if skipped or like_proxy == 0:
-                    _skip_raw[uid][sid] += decay
+                    if ms_played < 5_000:
+                        depth_mult = 1.5
+                    elif ms_played < 20_000:
+                        depth_mult = 1.0
+                    else:
+                        depth_mult = 0.5
+                    _skip_raw[uid][sid] += skip_decay * depth_mult
 
                 # Positive/recency signal: completed or highly played
                 if like_proxy == 1 or completion >= 0.8:
-                    _recency_raw[uid][sid] += decay
+                    _recency_raw[uid][sid] += recency_decay
+
+                    # Per-user activity profile: accumulate audio features
+                    # for songs the user actually finished in a known activity
+                    try:
+                        sess_id = int(row.get("session_id", ""))
+                    except (ValueError, TypeError):
+                        sess_id = None
+                    if sess_id is not None:
+                        act = session_activity.get((uid, sess_id))
+                        if act:
+                            audio = _song_audio_vecs.get(sid)
+                            if audio:
+                                for feat, val in audio.items():
+                                    act_sums[uid][act][feat]   += val
+                                    act_counts[uid][act][feat] += 1
 
         print(f"[RECOMMENDER] Events loaded for {len(_skip_raw)} users")
     else:
@@ -261,6 +319,16 @@ def load_all():
 
     _skip_scores    = {uid: dict(songs) for uid, songs in _skip_raw.items()}
     _recency_scores = {uid: dict(songs) for uid, songs in _recency_raw.items()}
+
+    # Finalise per-user activity audio profiles (average over all observed plays)
+    for uid, activities in act_sums.items():
+        _user_activity_profiles[uid] = {}
+        for act, feats in activities.items():
+            _user_activity_profiles[uid][act] = {
+                feat: act_sums[uid][act][feat] / act_counts[uid][act][feat]
+                for feat in feats
+            }
+    print(f"[RECOMMENDER] Per-user activity profiles: {len(_user_activity_profiles)} users")
 
     _loaded = True
     print("[RECOMMENDER] Ready.")
@@ -423,21 +491,20 @@ def _cosine_sim(q_vec: dict, song_vec: dict) -> float:
     return dot / (norm_q * norm_s)
 
 
-def _activity_score(activity: str, song_id: str) -> float:
+def _activity_score(activity: str, song_id: str, user_id: str | None = None) -> float:
     """
-    Cosine similarity between an activity's target audio profile and a song's
-    actual Spotify audio features.
+    Cosine similarity between an activity's audio profile and a song's features.
 
-    This is a completely separate vector space from TF-IDF.
-    TF-IDF operates on categorical features (genre, mood, artist tokens).
-    This operates on continuous features (energy, valence, tempo, etc.).
+    Uses a per-user learned profile if available (built from the user's actual
+    completed plays in that activity), otherwise falls back to the global
+    hand-crafted ACTIVITY_AUDIO_PROFILES vector.
 
-    Example:
-      activity="relax" → target {energy:0.2, acousticness:0.8, ...}
-      Song with energy=0.18, acousticness=0.75 → high similarity → boosted
-      Song with energy=0.9,  acousticness=0.05 → low similarity  → not boosted
+    Per-user profiles make this personalised: user A's "study" music (maybe
+    classical) will score differently from user B's (maybe lo-fi hip-hop).
     """
-    profile = ACTIVITY_AUDIO_PROFILES.get(activity)
+    # Prefer per-user learned profile; fall back to global hand-crafted vector
+    user_acts = _user_activity_profiles.get(user_id.lower() if user_id else "", {})
+    profile = user_acts.get(activity) or ACTIVITY_AUDIO_PROFILES.get(activity)
     song = _song_audio_vecs.get(song_id)
     if not profile or not song:
         return 0.0
@@ -508,14 +575,23 @@ def rank_songs(
         if profile_genres:
             candidates = retrieve_candidates(genres=profile_genres)
 
-    # Cold start fallback: user unknown or no candidates → use top-popular songs
+    # Cold start fallback: user unknown or no candidates →
+    # take top-50 by popularity per main_genre (gives diverse exposure instead
+    # of a mainstream-pop monoculture from a global top-500 list)
     if not candidates:
-        popular = sorted(
-            _catalog.keys(),
-            key=lambda s: int(_catalog[s].get("popularity", 0) or 0),
-            reverse=True,
-        )[:500]
-        candidates = popular
+        by_main_genre: dict = defaultdict(list)
+        for s in _catalog:
+            mg = _catalog[s].get("main_genre", "unknown")
+            by_main_genre[mg].append(s)
+        diverse_pool: list = []
+        for mg_songs in by_main_genre.values():
+            top50 = sorted(
+                mg_songs,
+                key=lambda s: int(_catalog[s].get("popularity", 0) or 0),
+                reverse=True,
+            )[:50]
+            diverse_pool.extend(top50)
+        candidates = diverse_pool
 
     if not candidates:
         return []
@@ -562,10 +638,12 @@ def rank_songs(
 
     # ── Score every candidate ──────────────────────────────────────────────────
     uid_lower = user_id.lower() if user_id else ""
-    user_skips    = _skip_scores.get(uid_lower, {})
-    user_recency  = _recency_scores.get(uid_lower, {})
+    user_skips   = _skip_scores.get(uid_lower, {})
+    user_recency = _recency_scores.get(uid_lower, {})
 
-    scored = []
+    # Each entry: dict with sid, final pre-diversity score, and component breakdown
+    scored: list[dict] = []
+
     for song_id in candidates:
         sid = str(song_id)
         song_vec = _song_vectors.get(sid)
@@ -580,54 +658,84 @@ def rank_songs(
             pop_norm = 0.5
 
         if resolved_activity:
-            act = _activity_score(resolved_activity, sid)
-            score = 0.65 * tfidf + 0.25 * act + 0.10 * pop_norm
+            # Pass user_id so per-user learned profile is used when available
+            act_score = _activity_score(resolved_activity, sid, user_id=uid_lower)
+            base = 0.65 * tfidf + 0.25 * act_score + 0.10 * pop_norm
         else:
-            score = 0.85 * tfidf + 0.15 * pop_norm
+            act_score = 0.0
+            base = 0.85 * tfidf + 0.15 * pop_norm
 
-        # Skip penalty: cap at 0.30 so heavily-skipped songs drop but aren't zero'd
-        # Formula: penalty = min(skip_score * 0.20, 0.30)
-        # A single recent skip (decay≈1.0) → -0.20; two recent skips → -0.30 (capped)
-        skip_raw = user_skips.get(sid, 0.0)
+        # Skip penalty (depth-weighted, capped at 0.30):
+        #   rage skip (< 5 s) → depth_mult=1.5 already baked into _skip_scores
+        #   A single recent rage-skip → raw≈1.5, penalty=min(1.5*0.20,0.30)=0.30
+        #   A single mild skip       → raw≈0.5, penalty=0.10
+        skip_raw     = user_skips.get(sid, 0.0)
         skip_penalty = min(skip_raw * 0.20, 0.30)
 
-        # Novelty penalty: lightly penalise songs the user has fully played recently
-        # so fresh tracks get a fair chance on repeat sessions
-        # Formula: penalty = min(recency_score * 0.05, 0.10)
-        recency_raw = user_recency.get(sid, 0.0)
+        # Novelty penalty (lightly penalise over-familiar songs, capped at 0.10):
+        recency_raw     = user_recency.get(sid, 0.0)
         novelty_penalty = min(recency_raw * 0.05, 0.10)
 
-        score = score - skip_penalty - novelty_penalty
-        scored.append((sid, score))
+        score = base - skip_penalty - novelty_penalty
 
-    scored.sort(key=lambda x: x[1], reverse=True)
+        scored.append({
+            "sid":            sid,
+            "score":          score,
+            "tfidf":          tfidf,
+            "act_score":      act_score,
+            "pop_norm":       pop_norm,
+            "skip_penalty":   skip_penalty,
+            "novelty_penalty": novelty_penalty,
+        })
 
-    # ── Greedy diversity: penalise artist repeats ──────────────────────────────
-    # Walk candidates in score order. Each time we've already added a song by
-    # the same artist, subtract 0.08 from that song's score before accepting it.
-    # This lets other artists compete without reshuffling the whole sorted list.
+    scored.sort(key=lambda x: x["score"], reverse=True)
+
+    # ── Greedy diversity: penalise both artist AND genre repeats ───────────────
+    # Artist penalty: -0.08 per prior same-artist result (existing behaviour)
+    # Genre penalty:  -0.04 per prior same-genre result (new: prevents genre spam)
+    # Genre penalty is half of artist penalty — genre variety is desirable but
+    # less critical than artist variety.
     artist_counts: dict[str, int] = {}
+    genre_counts:  dict[str, int] = {}
     results = []
 
-    for sid, base_score in scored:
+    for item in scored:
         if len(results) >= top_k:
             break
-        row = _catalog.get(sid, {})
-        artist = row.get("artist_name", "Unknown")
-        repeat = artist_counts.get(artist, 0)
-        final_score = base_score - 0.08 * repeat
+        sid        = item["sid"]
+        base_score = item["score"]
+        row        = _catalog.get(sid, {})
+        artist     = row.get("artist_name", "Unknown")
+        genre      = row.get("genre", "Unknown")
+
+        artist_repeat = artist_counts.get(artist, 0)
+        genre_repeat  = genre_counts.get(genre, 0)
+        artist_penalty = 0.08 * artist_repeat
+        genre_penalty  = 0.04 * genre_repeat
+        final_score    = base_score - artist_penalty - genre_penalty
 
         results.append({
             "track_id":     sid,
             "score":        round(final_score, 4),
             "title":        row.get("title", "Unknown"),
             "artist":       artist,
-            "genre":        row.get("genre", "Unknown"),
+            "genre":        genre,
             "main_genre":   row.get("main_genre", "Unknown"),
             "mood":         row.get("mood_bucket", "Unknown"),
             "energy_label": row.get("energy_label", "Unknown"),
             "popularity":   int(row.get("popularity", 0) or 0),
+            # Score breakdown — shows exactly why each song ranked where it did
+            "score_debug": {
+                "tfidf":           round(item["tfidf"], 4),
+                "activity":        round(item["act_score"], 4) if resolved_activity else None,
+                "popularity":      round(item["pop_norm"], 4),
+                "skip_penalty":    round(-item["skip_penalty"], 4),
+                "novelty_penalty": round(-item["novelty_penalty"], 4),
+                "artist_penalty":  round(-artist_penalty, 4),
+                "genre_penalty":   round(-genre_penalty, 4),
+            },
         })
-        artist_counts[artist] = repeat + 1
+        artist_counts[artist] = artist_repeat + 1
+        genre_counts[genre]   = genre_repeat  + 1
 
     return results
