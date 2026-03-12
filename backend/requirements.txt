@@ -1,7 +1,15 @@
-pandas
-numpy
-fastapi
-uvicorn
-python-dotenv
-pydantic
-scikit-learn
+# =========================
+# Backend API
+# =========================
+fastapi          # Backend framework (handles routes & requests)
+uvicorn          # ASGI server to run FastAPI
+python-dotenv    # Loads environment variables from .env
+pydantic         # Data validation & response models
+httpx            # Async HTTP client (Spotify API calls)
+
+# =========================
+# Data & Recommendation Engine
+# =========================
+pandas           # Data cleaning & feature engineering
+numpy            # Vector math & similarity computation
+scikit-learn     # TF-IDF & cosine similarity

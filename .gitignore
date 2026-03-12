@@ -28,6 +28,7 @@ backend/.venv/
 # OS
 .DS_Store
 Thumbs.db
+nul
 
 # Logs
 *.log
@@ -47,3 +48,7 @@ data/raw/Personal Data/Joseph/
 
 # Keep processed outputs in git
 !data/processed/
+
+# Unused frontend directories
+frontend-web/
+frontend/
