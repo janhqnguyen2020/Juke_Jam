@@ -40,6 +40,17 @@ const MOOD_FEATURES: Record<string, { valence: number; danceability: number; aco
   sad: { valence: 0.22, danceability: 0.3, acousticness: 0.6 },
 }
 
+function ScoreRow({ label, value, positive }: { label: string; value: number; positive: boolean }) {
+  return (
+    <div className="flex justify-between items-center">
+      <span className="text-jukeDark/60">{label}</span>
+      <span className={`font-semibold tabular-nums ${positive ? "text-jukeDark" : "text-red-400"}`}>
+        {positive ? "+" : ""}{value.toFixed(4)}
+      </span>
+    </div>
+  )
+}
+
 function FeatureBar({ label, value }: { label: string; value: number }) {
   const pct = Math.round(value * 100)
 
@@ -182,29 +193,54 @@ export default function SongCard({ song, rank, expanded, onToggle }: Props) {
                 Score Breakdown
               </p>
 
-              <div className="flex flex-col gap-[10px] text-[14px]">
-                <div className="flex justify-between">
-                  <span className="text-jukeDark/60">Relevance</span>
-                  <span className="font-semibold">{song.score.toFixed(4)}</span>
-                </div>
+              {song.score_debug ? (
+                <div className="flex flex-col gap-[8px] text-[13px]">
+                  {/* Positive contributors */}
+                  <ScoreRow label="TF-IDF match"  value={song.score_debug.tfidf}      positive />
+                  {song.score_debug.activity != null && (
+                    <ScoreRow label="Activity fit" value={song.score_debug.activity}   positive />
+                  )}
+                  <ScoreRow label="Popularity"    value={song.score_debug.popularity}  positive />
 
-                <div className="flex justify-between">
-                  <span className="text-jukeDark/60">Popularity</span>
-                  <span className="font-semibold">{song.popularity}</span>
-                </div>
+                  {/* Divider before penalties */}
+                  {(song.score_debug.skip_penalty < 0 ||
+                    song.score_debug.novelty_penalty < 0 ||
+                    song.score_debug.artist_penalty < 0 ||
+                    song.score_debug.genre_penalty < 0) && (
+                    <div className="border-t border-jukeDark/10 my-[2px]" />
+                  )}
 
-                <div className="flex justify-between">
-                  <span className="text-jukeDark/60">Genre</span>
-                  <span className="font-semibold capitalize">{song.genre}</span>
-                </div>
+                  {song.score_debug.skip_penalty < 0 && (
+                    <ScoreRow label="Skip penalty"   value={song.score_debug.skip_penalty}   positive={false} />
+                  )}
+                  {song.score_debug.novelty_penalty < 0 && (
+                    <ScoreRow label="Novelty penalty" value={song.score_debug.novelty_penalty} positive={false} />
+                  )}
+                  {song.score_debug.artist_penalty < 0 && (
+                    <ScoreRow label="Artist repeat"  value={song.score_debug.artist_penalty} positive={false} />
+                  )}
+                  {song.score_debug.genre_penalty < 0 && (
+                    <ScoreRow label="Genre repeat"   value={song.score_debug.genre_penalty}  positive={false} />
+                  )}
 
-                <div className="flex justify-between items-center">
-                  <span className="text-jukeDark/60">Mood</span>
-                  <span className={`px-[8px] py-[2px] rounded-full text-[12px] border capitalize ${moodPill}`}>
-                    {song.mood}
-                  </span>
+                  <div className="border-t border-jukeDark/10 mt-[2px] pt-[6px] flex justify-between font-bold">
+                    <span className="text-jukeDark/70">Final score</span>
+                    <span>{song.score.toFixed(4)}</span>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                /* Fallback for cold-start results that have no debug info */
+                <div className="flex flex-col gap-[10px] text-[14px]">
+                  <div className="flex justify-between">
+                    <span className="text-jukeDark/60">Score</span>
+                    <span className="font-semibold">{song.score.toFixed(4)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-jukeDark/60">Popularity</span>
+                    <span className="font-semibold">{song.popularity}</span>
+                  </div>
+                </div>
+              )}
             </div>
 
           </div>
