@@ -130,6 +130,10 @@ html, body {
   padding: 0;
 }
 
+html {
+  zoom: 0.8;
+}
+
 body {
   background-color: #F4EBD0;
   color: #6A2C2C;

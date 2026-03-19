@@ -29,7 +29,7 @@ export default function LandingPage() {
         alt="JukeJam"
         width={620}
         height={140}
-        className="w-[620px] h-auto"
+        className="w-full max-w-[480px] h-auto"
         priority
       />
 
@@ -44,7 +44,7 @@ export default function LandingPage() {
           alt="Person, Task, Time"
           width={620}
           height={320}
-          className="w-[620px] h-auto justify-center item-center drop-shadow-lg"
+          className="w-full max-w-[480px] h-auto justify-center item-center drop-shadow-lg"
         />
       </div>
 

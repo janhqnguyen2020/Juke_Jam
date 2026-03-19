@@ -112,6 +112,7 @@ export default function FilterBar({ filters, onChange, searchQuery, onSearchChan
         {/* Context Quiz button */}
         <button
           onClick={onOpenQuiz}
+          suppressHydrationWarning
           className="flex-shrink-0 flex items-center gap-[8px] px-[20px] py-[10px] rounded-full
                      bg-jukeRed text-jukeCream font-bold text-[15px] border-2 border-jukeDark
                      hover:bg-jukeDark transition-all duration-200 shadow-sm"

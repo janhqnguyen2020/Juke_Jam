@@ -38,11 +38,12 @@ export async function getContextRecommendations(payload: {
   title?: string | null
   time_of_day?: string | null
   top_k?: number
-}): Promise<RecommendResponse> {
+}, signal?: AbortSignal): Promise<RecommendResponse> {
   const res = await fetch(`${BASE_URL}/recommend/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
+    signal,
   })
   if (!res.ok) throw new Error(`Server responded with ${res.status}`)
   return res.json()

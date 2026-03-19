@@ -45,7 +45,7 @@ function ScoreRow({ label, value, positive }: { label: string; value: number; po
     <div className="flex justify-between items-center">
       <span className="text-jukeDark/60">{label}</span>
       <span className={`font-semibold tabular-nums ${positive ? "text-jukeDark" : "text-red-400"}`}>
-        {positive ? "+" : ""}{value.toFixed(4)}
+        {positive ? "+" : "−"}{Math.abs(value).toFixed(4)}
       </span>
     </div>
   )

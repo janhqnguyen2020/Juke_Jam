@@ -103,6 +103,7 @@ function SongSection({
           <button
             onClick={onRefresh}
             title="Refresh"
+            suppressHydrationWarning
             className="w-8 h-8 rounded-full flex items-center justify-center border-2 bg-white border-jukeDark/25 text-jukeDark/60 hover:border-jukeDark hover:text-jukeDark transition-all"
           >
             <RefreshCw size={60} strokeWidth={1} />
@@ -251,10 +252,18 @@ function HomePageInner() {
   filtersRef.current   = filters
   searchRef.current    = searchQuery
 
+  // Abort controller for in-flight explore requests
+  const exploreAbortRef  = useRef<AbortController | null>(null)
+  const filterDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   // ── Fetch: Section B (filtered) ───────────────────────────────────────────
   const fetchExplore = async (opts: FilterState & { search?: string }) => {
     const uid = userIdRef.current
     if (!uid) return
+    // Cancel any previous in-flight request
+    exploreAbortRef.current?.abort()
+    const controller = new AbortController()
+    exploreAbortRef.current = controller
     setExploreLoading(true)
     setExploreError(null)
     try {
@@ -266,10 +275,12 @@ function HomePageInner() {
         title:       opts.search || undefined,
         time_of_day: timeOfDayRef.current ?? undefined,
         top_k:       7,
-      })
+      }, controller.signal)
       setExploreSongs(data.recommendations)
-    } catch {
-      setExploreError("Could not load recommendations. Check that FastAPI is running on port 8000.")
+    } catch (err) {
+      if ((err as Error)?.name !== "AbortError") {
+        setExploreError("Could not load recommendations. Check that FastAPI is running on port 8000.")
+      }
     } finally {
       setExploreLoading(false)
     }
@@ -324,10 +335,13 @@ function HomePageInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery])
 
-  // ── Filter chip change → Section B ───────────────────────────────────────
+  // ── Filter chip change → Section B (debounced 300ms) ────────────────────
   const handleFilterChange = (newFilters: FilterState) => {
     setFilters(newFilters)
-    fetchExplore({ ...newFilters, search: searchRef.current })
+    if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current)
+    filterDebounceRef.current = setTimeout(() => {
+      fetchExplore({ ...newFilters, search: searchRef.current })
+    }, 300)
   }
 
   // ── Context quiz submit → 5 songs shown inside the modal ────────────────
@@ -617,6 +631,7 @@ function HomePageInner() {
               <button
                 onClick={refreshSubgenreChips}
                 title="New suggestions"
+                suppressHydrationWarning
                 className="w-9 h-8 rounded-full flex items-center justify-center border-2 bg-white border-jukeDark/25 text-jukeDark/60 hover:border-jukeDark hover:text-jukeDark transition-all"
               >
                 <RefreshCw size={60} strokeWidth={1} />
