@@ -7,6 +7,7 @@ import { RefreshCw, Music, Music2, Music3, Star, ListMusic, SlidersHorizontal, C
 import type { ProfileSummary, Song } from "@/lib/types"
 import { getHomeRecommendations, getContextRecommendations, getProfile } from "@/lib/api"
 import { currentTimeSlot } from "@/lib/time"
+import type { ReasonContext } from "@/lib/reasons"
 import SongCard from "@/components/home/SongCard"
 import FilterBar, { type FilterState } from "@/components/home/FilterBar"
 import ContextModal from "@/components/home/ContextModal"
@@ -186,8 +187,6 @@ function HomePageInner() {
   const [exploreLoading, setExploreLoading] = useState(false)
   const [exploreError,   setExploreError]   = useState<string | null>(null)
 
-  const [expandedId, setExpandedId] = useState<string | null>(null)
-
   // ── Discover (subgenre) ─────────────────────────────────────────────────────
   const [subgenreChips,    setSubgenreChips]    = useState<string[]>([])
   const [activeSubgenre,   setActiveSubgenre]   = useState<string | null>(null)
@@ -357,7 +356,6 @@ function HomePageInner() {
   const handleRefresh = () => {
     if (pool.length > PAGE_SIZE) {
       setOffset((o) => (o + PAGE_SIZE < pool.length ? o + PAGE_SIZE : 0))
-      setExpandedId(null)
     } else {
       loadFeed()
     }
@@ -416,7 +414,18 @@ function HomePageInner() {
     searchQuery.trim() && `“${searchQuery.trim()}”`,
   ].filter(Boolean).join(" · ")
 
-  const toggle = (id: string) => setExpandedId((p) => (p === id ? null : id))
+  // What each list's request actually asked for, so "Why this song?" only claims real matches
+  const profileGenres = profile?.top_genres ?? []
+  const profileEnergy = profile?.energy_label ?? null
+  const feedCtx: ReasonContext = {
+    mood: context.mood, activity: context.activity, profileEnergy, genres: profileGenres,
+  }
+  const exploreCtx: ReasonContext = {
+    ...feedCtx, energy: filters.energy, genres: [filters.genre, ...profileGenres],
+  }
+  const discoverCtx: ReasonContext = {
+    profileEnergy, genres: [activeSubgenre, ...profileGenres],
+  }
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -489,23 +498,7 @@ function HomePageInner() {
             ) : feedError ? (
               <ErrorState message={feedError} onRetry={loadFeed} />
             ) : featured ? (
-              <div className="flex flex-col gap-[16px]">
-                <SongCard
-                  song={featured.song}
-                  rank={featured.rank}
-                  expanded={expandedId === featured.song.track_id}
-                  onToggle={() => toggle(featured.song.track_id)}
-                />
-                <iframe
-                  src={`https://open.spotify.com/embed/track/${featured.song.track_id}?utm_source=generator`}
-                  width="100%"
-                  height="152"
-                  allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                  loading="lazy"
-                  className="block w-full rounded-xl border-0"
-                  title={`Spotify player for ${featured.song.title ?? "this track"}`}
-                />
-              </div>
+              <SongCard song={featured.song} rank={featured.rank} variant="featured" context={feedCtx} />
             ) : (
               <EmptyState title="No picks yet" hint="Try setting a mood and activity, or take the taste quiz." />
             )}
@@ -551,8 +544,7 @@ function HomePageInner() {
                     key={song.track_id}
                     song={song}
                     rank={i + 1}
-                    expanded={expandedId === song.track_id}
-                    onToggle={() => toggle(song.track_id)}
+                    context={exploreCtx}
                   />
                 ))}
               </div>
@@ -581,8 +573,7 @@ function HomePageInner() {
                     key={song.track_id}
                     song={song}
                     rank={rank}
-                    expanded={expandedId === song.track_id}
-                    onToggle={() => toggle(song.track_id)}
+                    context={feedCtx}
                   />
                 ))}
               </div>
@@ -637,8 +628,7 @@ function HomePageInner() {
                   key={song.track_id}
                   song={song}
                   rank={i + 1}
-                  expanded={expandedId === song.track_id}
-                  onToggle={() => toggle(song.track_id)}
+                  context={discoverCtx}
                 />
               ))}
             </div>

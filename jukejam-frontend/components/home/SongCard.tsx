@@ -1,265 +1,270 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import type { Song } from "@/lib/types"
+import { useEffect, useRef, useState } from "react"
+import { ChevronDown, ChevronRight, ExternalLink, Check, Minus } from "lucide-react"
+import type { ScoreDebug, Song } from "@/lib/types"
 import { API_URL } from "@/lib/api"
+import { getReasons, type ReasonContext } from "@/lib/reasons"
+import { Pill } from "@/components/ui/panel"
 
-const ART_GRADIENTS = [
-  ["#9C4B4B", "#6A2C2C"],
-  ["#3B5998", "#1E3A5F"],
-  ["#2D6A4F", "#1B4332"],
-  ["#7B5EA7", "#4A3270"],
-  ["#C4862B", "#8A5A1A"],
-  ["#2A7F8E", "#1A5260"],
-  ["#A44C6D", "#6E2D47"],
-  ["#5B7C4A", "#3A5230"],
+// ─── Artwork ──────────────────────────────────────────────────────────────────
+// Module-level cache so refresh / re-render doesn't refetch art we already have.
+// `null` = we asked and there is none.
+const artCache = new Map<string, string | null>()
+
+// The backend's art endpoint opens a new HTTPS client per call, which briefly
+// blocks the server. Firing ten at once delays every other request (filters,
+// feed) by several seconds, so art loads at most two at a time, and only for
+// cards near the viewport.
+const ART_CONCURRENCY = 2
+let artActive = 0
+const artQueue: (() => void)[] = []
+
+function runArtQueue() {
+  while (artActive < ART_CONCURRENCY && artQueue.length > 0) {
+    const job = artQueue.shift()!
+    artActive++
+    job()
+  }
+}
+
+function fetchArt(trackId: string, signal: AbortSignal): Promise<string | null> {
+  return new Promise((resolve) => {
+    const job = () => {
+      if (signal.aborted) { artActive--; runArtQueue(); resolve(null); return }
+      fetch(`${API_URL}/spotify/art/${encodeURIComponent(trackId)}`, { signal })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          const u = typeof data?.url === "string" ? data.url : null
+          artCache.set(trackId, u)
+          resolve(u)
+        })
+        .catch(() => resolve(null))
+        .finally(() => { artActive--; runArtQueue() })
+    }
+    artQueue.push(job)
+    runArtQueue()
+  })
+}
+
+const FALLBACK_GRADIENTS: [string, string][] = [
+  ["#7A3030", "#672626"],
+  ["#C98787", "#7A3030"],
+  ["#A67570", "#6F2929"],
+  ["#9C4B4B", "#5A2020"],
 ]
 
-function artistGradient(name: string): string[] {
-  return ART_GRADIENTS[name.charCodeAt(0) % ART_GRADIENTS.length]
-}
+function Artwork({ trackId, artist, size }: { trackId: string; artist: string; size: "lg" | "md" }) {
+  const [url, setUrl] = useState<string | null>(() => artCache.get(trackId) ?? null)
+  const [broken, setBroken] = useState(false)
+  const [near, setNear] = useState(false)
+  const boxRef = useRef<HTMLDivElement | null>(null)
 
-const MOOD_PILL: Record<string, string> = {
-  happy: "bg-yellow-100 text-yellow-800 border-yellow-200",
-  hype: "bg-orange-100 text-orange-700 border-orange-200",
-  chill: "bg-sky-100 text-sky-800 border-sky-200",
-  sad: "bg-indigo-100 text-indigo-700 border-indigo-200",
-  focus: "bg-emerald-100 text-emerald-800 border-emerald-200",
-}
+  // Only start loading once the card is close to the viewport
+  useEffect(() => {
+    const el = boxRef.current
+    if (!el || typeof IntersectionObserver === "undefined") { setNear(true); return }
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) { setNear(true); io.disconnect() }
+    }, { rootMargin: "300px" })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
 
-const ENERGY_VAL: Record<string, number> = {
-  calm: 0.25,
-  medium: 0.6,
-  energetic: 0.88,
-}
+  useEffect(() => {
+    setBroken(false)
+    if (artCache.has(trackId)) {
+      setUrl(artCache.get(trackId) ?? null)
+      return
+    }
+    setUrl(null)
+    if (!near) return
+    const controller = new AbortController()
+    fetchArt(trackId, controller.signal).then((u) => { if (!controller.signal.aborted) setUrl(u) })
+    return () => controller.abort()
+  }, [trackId, near])
 
-const MOOD_FEATURES: Record<string, { valence: number; danceability: number; acousticness: number }> = {
-  happy: { valence: 0.78, danceability: 0.72, acousticness: 0.28 },
-  hype: { valence: 0.65, danceability: 0.85, acousticness: 0.1 },
-  chill: { valence: 0.55, danceability: 0.45, acousticness: 0.62 },
-  focus: { valence: 0.4, danceability: 0.38, acousticness: 0.55 },
-  sad: { valence: 0.22, danceability: 0.3, acousticness: 0.6 },
-}
+  const box = size === "lg"
+    ? "h-[112px] w-[112px] desk:h-[168px] desk:w-[168px] rounded-[16px] text-[40px]"
+    : "h-[64px] w-[64px] tablet:h-[72px] tablet:w-[72px] rounded-[12px] text-[24px]"
 
-function ScoreRow({ label, value, positive }: { label: string; value: number; positive: boolean }) {
-  return (
-    <div className="flex justify-between items-center">
-      <span className="text-jukeDark/60">{label}</span>
-      <span className={`font-semibold tabular-nums ${positive ? "text-jukeDark" : "text-red-400"}`}>
-        {positive ? "+" : "−"}{Math.abs(value).toFixed(4)}
-      </span>
-    </div>
-  )
-}
-
-function FeatureBar({ label, value }: { label: string; value: number }) {
-  const pct = Math.round(value * 100)
-
-  return (
-    <div className="grid grid-cols-[120px_1fr_40px] items-center gap-[14px]">
-      <span className="text-jukeDark/55 text-[14px] font-medium">
-        {label}
-      </span>
-
-      <div className="h-[8px] bg-jukeDark/10 rounded-full overflow-hidden">
-        <div
-          className="h-full bg-jukeRed rounded-full transition-all duration-500"
-          style={{ width: `${pct}%` }}
-        />
+  if (url && !broken) {
+    return (
+      <div ref={boxRef} className="shrink-0">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={url} alt="" onError={() => setBroken(true)} className={`${box} block object-cover`} />
       </div>
-
-      <span className="text-jukeDark/60 text-[13px] tabular-nums text-right">
-        {value.toFixed(2)}
-      </span>
+    )
+  }
+  const initial = (artist || "?").trim().charAt(0).toUpperCase() || "?"
+  const [a, b] = FALLBACK_GRADIENTS[initial.charCodeAt(0) % FALLBACK_GRADIENTS.length]
+  return (
+    <div
+      ref={boxRef}
+      aria-hidden
+      className={`${box} flex shrink-0 items-center justify-center font-[800] text-jj-paper`}
+      style={{ background: `linear-gradient(135deg, ${a}, ${b})` }}
+    >
+      {initial}
     </div>
   )
 }
+
+// ─── Score breakdown ──────────────────────────────────────────────────────────
+const pct = (v: number) => `${Math.round(v * 100)}%`
+const pen = (v: number) => `−${Math.abs(v).toFixed(2)}`
+
+function ScoreBreakdown({ debug, score }: { debug?: ScoreDebug; score: number }) {
+  if (!debug) {
+    return (
+      <p className="text-[14px] text-jj-muted">
+        No detailed breakdown for this song. It was ranked by popularity because there wasn&apos;t enough taste data yet.
+      </p>
+    )
+  }
+  const rows: { label: string; value: string; negative?: boolean }[] = [
+    { label: "Text match", value: pct(debug.tfidf) },
+  ]
+  if (typeof debug.activity === "number") rows.push({ label: "Activity fit", value: pct(debug.activity) })
+  rows.push({ label: "Popularity", value: pct(debug.popularity) })
+  if (debug.skip_penalty < 0)    rows.push({ label: "Skipped before",   value: pen(debug.skip_penalty),    negative: true })
+  if (debug.novelty_penalty < 0) rows.push({ label: "Played a lot lately", value: pen(debug.novelty_penalty), negative: true })
+  if (debug.artist_penalty < 0)  rows.push({ label: "Artist variety",   value: pen(debug.artist_penalty),  negative: true })
+  if (debug.genre_penalty < 0)   rows.push({ label: "Genre variety",    value: pen(debug.genre_penalty),   negative: true })
+
+  return (
+    <div className="flex max-w-[360px] flex-col gap-[6px] text-[14px]">
+      {rows.map((r) => (
+        <div key={r.label} className="flex justify-between gap-[16px]">
+          <span className="text-jj-muted">{r.label}</span>
+          <span className={`tabular-nums font-[600] ${r.negative ? "text-jj-accent" : "text-jj-text"}`}>{r.value}</span>
+        </div>
+      ))}
+      <div className="mt-[2px] flex justify-between gap-[16px] border-t border-jj-border pt-[6px]">
+        <span className="font-[700] text-jj-text">Final score</span>
+        <span className="tabular-nums font-[700] text-jj-text">{Number.isFinite(score) ? score.toFixed(3) : "–"}</span>
+      </div>
+      <p className="text-[12px] text-jj-muted">
+        Text match compares the song&apos;s genre, mood and energy tags with your request, taste profile and time of day.
+      </p>
+    </div>
+  )
+}
+
+// ─── Card ─────────────────────────────────────────────────────────────────────
+const known = (v: unknown): v is string => typeof v === "string" && v.trim() !== "" && v.toLowerCase() !== "unknown"
+const pretty = (v: string) => v.replace(/-/g, " ")
 
 interface Props {
   song: Song
   rank: number
-  expanded: boolean
-  onToggle: () => void
+  variant?: "featured" | "row"
+  context: ReasonContext
 }
 
-export default function SongCard({ song, rank, expanded, onToggle }: Props) {
-  const [colors] = useState(() => artistGradient(song.artist))
-  const [artUrl, setArtUrl] = useState<string | null>(null)
+export default function SongCard({ song, rank, variant = "row", context }: Props) {
+  const [whyOpen, setWhyOpen] = useState(false)
+  const [scoreOpen, setScoreOpen] = useState(false)
+  const featured = variant === "featured"
 
-  useEffect(() => {
-    fetch(`${API_URL}/spotify/art/${song.track_id}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data?.url) setArtUrl(data.url) })
-      .catch(() => {})
-  }, [song.track_id])
-  const moodPill = MOOD_PILL[song.mood] ?? "bg-gray-100 text-gray-700 border-gray-200"
-  const energyVal = ENERGY_VAL[song.energy_label] ?? 0.5
-  const moodFeat = MOOD_FEATURES[song.mood] ?? MOOD_FEATURES.focus
-  const popularity = song.popularity / 100
+  const title  = known(song.title)  ? song.title  : "Untitled track"
+  const artist = known(song.artist) ? song.artist : "Unknown artist"
+  const reasons = whyOpen ? getReasons(song, context) : []
+  const popularity = typeof song.popularity === "number" ? song.popularity : null
+  const showGenre = known(song.genre) && song.genre.toLowerCase() !== String(song.main_genre ?? "").toLowerCase()
 
   return (
-    <div
-      onClick={onToggle}
-      className={`
-        bg-white
-        rounded-[24px]
-        transition-all duration-300
-        overflow-hidden
-        border border-jukeDark/10
-        cursor-pointer
-        ${expanded
-          ? "shadow-xl ring-1 ring-jukeRed/20"
-          : "shadow-md hover:shadow-xl hover:-translate-y-[2px]"}
-      `}
+    <article
+      data-song-card
+      data-title={title}
+      className={featured
+        ? "min-w-[0px]"
+        : "min-w-[0px] rounded-[16px] border border-jj-border bg-jj-paper p-[16px] transition-colors hover:border-jj-accent tablet:p-[20px]"}
     >
-      {/* Main Row */}
-      <div className="flex items-center gap-[24px] px-[28px] py-[22px]">
+      <div className={`flex gap-[16px] ${featured ? "flex-col tablet:flex-row tablet:gap-[24px]" : ""}`}>
+        <Artwork trackId={song.track_id} artist={artist} size={featured ? "lg" : "md"} />
 
-        <span className="text-jukeDark/15 font-bold text-[20px] w-[28px] text-right select-none">
-          {rank}
-        </span>
-
-        {artUrl ? (
-          <img
-            src={artUrl}
-            alt={song.title}
-            className="w-[84px] h-[84px] rounded-[18px] object-cover shadow-sm flex-shrink-0"
-          />
-        ) : (
-          <div
-            className="w-[84px] h-[84px] rounded-[18px] flex items-center justify-center text-white text-[30px] font-black shadow-sm flex-shrink-0"
-            style={{ background: `linear-gradient(135deg, ${colors[0]}, ${colors[1]})` }}
-          >
-            {song.artist[0]?.toUpperCase() ?? "?"}
-          </div>
-        )}
-
-        <div className="flex-1 min-w-0">
-          <p className="font-bold text-jukeDark text-[20px] truncate">
-            {song.title}
-          </p>
-          <p className="text-jukeDark/50 text-[15px] mt-[2px] truncate">
-            {song.artist}
-          </p>
-
-          <div className="flex gap-[8px] mt-[10px] flex-wrap">
-            <span className="text-[12px] bg-jukeCream border border-jukeDark/15 text-jukeDark px-[10px] py-[4px] rounded-full font-semibold capitalize">
-              {song.main_genre}
-            </span>
-            <span className={`text-[12px] border px-[10px] py-[4px] rounded-full font-semibold capitalize ${moodPill}`}>
-              {song.mood}
-            </span>
-            <span className="text-[12px] bg-jukeCream/60 border border-jukeDark/10 text-jukeDark/60 px-[10px] py-[4px] rounded-full font-semibold capitalize">
-              {song.energy_label}
-            </span>
-          </div>
-        </div>
-
-        <div className="flex flex-col items-end gap-[4px]">
-          <span className="text-jukeDark font-bold text-[26px] tabular-nums">
-            {(song.score * 100).toFixed(0)}
-            <span className="text-jukeDark/30 text-[14px] font-normal">%</span>
-          </span>
-          <span className="text-jukeDark/30 text-[12px]">
-            {expanded ? "▲ less" : "▼ details"}
-          </span>
-        </div>
-
-      </div>
-
-      {/* Expanded Section */}
-      {expanded && (
-        <div
-          className="px-[28px] pb-[24px] pt-[6px] border-t border-jukeDark/8"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="grid grid-cols-2 gap-[40px]">
-
-            <div>
-              <p className="text-jukeDark/70 font-bold text-[12px] mb-[14px] tracking-[1px] uppercase">
-                Audio Features
-              </p>
-
-              <div className="flex flex-col gap-[12px]">
-                <FeatureBar label="Energy" value={energyVal} />
-                <FeatureBar label="Danceability" value={moodFeat.danceability} />
-                <FeatureBar label="Positiveness" value={moodFeat.valence} />
-                <FeatureBar label="Acousticness" value={moodFeat.acousticness} />
-                <FeatureBar label="Popularity" value={popularity} />
-              </div>
+        <div className="min-w-[0px] flex-1">
+          <div className="flex items-start justify-between gap-[12px]">
+            <div className="min-w-[0px]">
+              <h3 className={`truncate font-[800] text-jj-text ${featured ? "text-[28px] desk:text-[32px]" : "text-[20px]"}`}>{title}</h3>
+              <p className={`truncate text-jj-muted ${featured ? "text-[20px]" : "text-[16px]"}`}>{artist}</p>
             </div>
+            <span className="shrink-0 rounded-[6px] bg-jj-cream px-[8px] py-[2px] text-[14px] font-[700] text-jj-primary">#{rank}</span>
+          </div>
 
-            <div>
-              <p className="text-jukeDark/70 font-bold text-[12px] mb-[14px] tracking-[1px] uppercase">
-                Score Breakdown
-              </p>
+          <div className="mt-[12px] flex flex-wrap gap-[8px]">
+            {known(song.main_genre) && <Pill>{pretty(song.main_genre)}</Pill>}
+            {showGenre && <Pill>{pretty(song.genre)}</Pill>}
+            {known(song.mood) && <Pill>{song.mood}</Pill>}
+            {known(song.energy_label) && <Pill>{song.energy_label} energy</Pill>}
+          </div>
 
-              {song.score_debug ? (
-                <div className="flex flex-col gap-[8px] text-[13px]">
-                  {/* Positive contributors */}
-                  <ScoreRow label="TF-IDF match"  value={song.score_debug.tfidf}      positive />
-                  {song.score_debug.activity != null && (
-                    <ScoreRow label="Activity fit" value={song.score_debug.activity}   positive />
-                  )}
-                  <ScoreRow label="Popularity"    value={song.score_debug.popularity}  positive />
+          <div className="mt-[12px] flex flex-wrap items-center gap-x-[16px] gap-y-[4px] text-[14px] text-jj-muted">
+            {popularity !== null && <span>Popularity {popularity}/100</span>}
+            <a
+              href={`https://open.spotify.com/track/${encodeURIComponent(song.track_id)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-[4px] font-[600] text-jj-primary underline-offset-[3px] hover:underline"
+            >
+              Open in Spotify <ExternalLink className="h-[14px] w-[14px]" />
+            </a>
+          </div>
 
-                  {/* Divider before penalties */}
-                  {(song.score_debug.skip_penalty < 0 ||
-                    song.score_debug.novelty_penalty < 0 ||
-                    song.score_debug.artist_penalty < 0 ||
-                    song.score_debug.genre_penalty < 0) && (
-                    <div className="border-t border-jukeDark/10 my-[2px]" />
-                  )}
+          <button
+            type="button"
+            onClick={() => setWhyOpen((o) => !o)}
+            aria-expanded={whyOpen}
+            className="mt-[12px] inline-flex items-center gap-[4px] text-[16px] font-[700] text-jj-primary hover:underline"
+          >
+            Why this song?
+            <ChevronDown className={`h-[16px] w-[16px] transition-transform ${whyOpen ? "rotate-180" : ""}`} />
+          </button>
 
-                  {song.score_debug.skip_penalty < 0 && (
-                    <ScoreRow label="Skip penalty"   value={song.score_debug.skip_penalty}   positive={false} />
-                  )}
-                  {song.score_debug.novelty_penalty < 0 && (
-                    <ScoreRow label="Novelty penalty" value={song.score_debug.novelty_penalty} positive={false} />
-                  )}
-                  {song.score_debug.artist_penalty < 0 && (
-                    <ScoreRow label="Artist repeat"  value={song.score_debug.artist_penalty} positive={false} />
-                  )}
-                  {song.score_debug.genre_penalty < 0 && (
-                    <ScoreRow label="Genre repeat"   value={song.score_debug.genre_penalty}  positive={false} />
-                  )}
+          {whyOpen && (
+            <div className="mt-[8px] rounded-[12px] border border-jj-border bg-jj-cream/50 p-[12px] tablet:p-[16px]">
+              <ul data-reasons className="flex flex-col gap-[6px] text-[15px]">
+                {reasons.map((r) => (
+                  <li key={r.text} className={`flex items-start gap-[8px] ${r.positive ? "text-jj-text" : "text-jj-muted"}`}>
+                    {r.positive
+                      ? <Check className="mt-[3px] h-[16px] w-[16px] shrink-0 text-jj-primary" strokeWidth={3} />
+                      : <Minus className="mt-[3px] h-[16px] w-[16px] shrink-0 text-jj-accent" strokeWidth={3} />}
+                    <span>{r.text}</span>
+                  </li>
+                ))}
+              </ul>
 
-                  <div className="border-t border-jukeDark/10 mt-[2px] pt-[6px] flex justify-between font-bold">
-                    <span className="text-jukeDark/70">Final score</span>
-                    <span>{song.score.toFixed(4)}</span>
-                  </div>
-                </div>
-              ) : (
-                /* Fallback for cold-start results that have no debug info */
-                <div className="flex flex-col gap-[10px] text-[14px]">
-                  <div className="flex justify-between">
-                    <span className="text-jukeDark/60">Score</span>
-                    <span className="font-semibold">{song.score.toFixed(4)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-jukeDark/60">Popularity</span>
-                    <span className="font-semibold">{song.popularity}</span>
-                  </div>
+              <button
+                type="button"
+                onClick={() => setScoreOpen((o) => !o)}
+                aria-expanded={scoreOpen}
+                className="mt-[12px] inline-flex items-center gap-[4px] text-[14px] font-[600] text-jj-muted hover:text-jj-primary"
+              >
+                <ChevronRight className={`h-[14px] w-[14px] transition-transform ${scoreOpen ? "rotate-90" : ""}`} />
+                Score breakdown
+              </button>
+              {scoreOpen && (
+                <div className="mt-[8px]">
+                  <ScoreBreakdown debug={song.score_debug} score={song.score} />
                 </div>
               )}
             </div>
-
-          </div>
-
-          {/* Spotify embed — auto on expand */}
-          <div className="mt-[20px] pt-[16px] border-t border-jukeDark/8" onClick={(e) => e.stopPropagation()}>
-            <iframe
-              src={`https://open.spotify.com/embed/track/${song.track_id}?utm_source=generator`}
-              width="100%"
-              height="80"
-              allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-              loading="lazy"
-              className="rounded-[12px] border-0"
-            />
-          </div>
-
+          )}
         </div>
+      </div>
+
+      {featured && (
+        <iframe
+          src={`https://open.spotify.com/embed/track/${encodeURIComponent(song.track_id)}?utm_source=generator`}
+          width="100%"
+          height="152"
+          allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+          loading="lazy"
+          className="mt-[20px] block w-full rounded-[12px] border-0"
+          title={`Spotify player for ${title}`}
+        />
       )}
-    </div>
+    </article>
   )
 }
