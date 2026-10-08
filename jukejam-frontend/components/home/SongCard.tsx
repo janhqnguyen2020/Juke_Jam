@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import type { Song } from "@/lib/types"
+import { API_URL } from "@/lib/api"
 
 const ART_GRADIENTS = [
   ["#9C4B4B", "#6A2C2C"],
@@ -86,7 +87,7 @@ export default function SongCard({ song, rank, expanded, onToggle }: Props) {
   const [artUrl, setArtUrl] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch(`http://localhost:8000/spotify/art/${song.track_id}`)
+    fetch(`${API_URL}/spotify/art/${song.track_id}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data?.url) setArtUrl(data.url) })
       .catch(() => {})

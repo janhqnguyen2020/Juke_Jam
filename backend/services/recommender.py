@@ -20,6 +20,8 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
+from services import db
+
 # ── Paths (relative to this file's location) ───────────────────────────────────
 _BASE = Path(__file__).resolve().parent.parent.parent
 _INDEXES_PATH      = _BASE / "indexes" / "indexes.json"
@@ -202,11 +204,15 @@ def load_all():
     print(f"[RECOMMENDER] Catalog: {len(_catalog)} tracks")
 
 
-    # ── Load user profiles ─────────────────────────────────────────────────────
-    with open(_PROFILE_PATH, newline="", encoding="utf-8") as f:
-        for row in csv.DictReader(f):
-            _user_profiles[row["user_id"].lower()] = row
-    print(f"[RECOMMENDER] Profiles: {len(_user_profiles)} users")
+    # ── Load user profiles (Postgres if DATABASE_URL is set, else CSV) ─────────
+    if db.enabled():
+        profile_rows = db.fetch_profiles()
+    else:
+        with open(_PROFILE_PATH, newline="", encoding="utf-8") as f:
+            profile_rows = list(csv.DictReader(f))
+    for row in profile_rows:
+        cache_profile(row)
+    print(f"[RECOMMENDER] Profiles: {len(_user_profiles)} users ({_source()})")
 
     # ── Load time context profiles ─────────────────────────────────────────────
     with open(_TIME_CONTEXT_PATH, encoding="utf-8") as f:
@@ -253,69 +259,52 @@ def load_all():
                     pass
 
     # Step B: process play events
-    if _EVENTS_PATH.exists():
-        with open(_EVENTS_PATH, newline="", encoding="utf-8") as f:
-            for row in csv.DictReader(f):
-                uid = row.get("user_id", "").strip().lower()
-                sid = row.get("spotify_id", "").strip()
-                if not uid or not sid:
-                    continue
+    for ev in _iter_events():
+        uid = ev["user_id"].lower()
+        sid = ev["spotify_id"]
+        if not uid or not sid:
+            continue
 
-                # Parse timestamp for decay
-                ts_str = row.get("timestamp", "").strip()
-                try:
-                    ts = datetime.fromisoformat(ts_str)
-                    if ts.tzinfo is None:
-                        ts = ts.replace(tzinfo=timezone.utc)
-                    days_since = max(0.0, (now - ts).total_seconds() / 86400)
-                except (ValueError, AttributeError):
-                    days_since = 365.0
+        # Timestamp → decay (unknown timestamps count as a year old)
+        ts = ev["ts"]
+        days_since = max(0.0, (now - ts).total_seconds() / 86400) if ts else 365.0
 
-                skip_decay    = math.exp(-0.05 * days_since)
-                recency_decay = math.exp(-0.02 * days_since)
+        skip_decay    = math.exp(-0.05 * days_since)
+        recency_decay = math.exp(-0.02 * days_since)
 
-                skipped    = row.get("skipped", "").strip().lower() == "true"
-                like_str   = row.get("like_proxy", "").strip()
-                like_proxy = int(like_str) if like_str else None
-                comp_str   = row.get("completion_ratio", "").strip()
-                completion = float(comp_str) if comp_str else 0.0
+        skipped    = bool(ev["skipped"])
+        like_proxy = ev["like_proxy"]
+        completion = ev["completion_ratio"] or 0.0
+        ms_played  = ev["ms_played"] or 0
 
-                ms_str   = row.get("ms_played", "").strip()
-                ms_played = int(ms_str) if ms_str else 0
+        # Negative signal: explicit skip OR like_proxy == 0
+        # Depth multiplier: rage skip (< 5 s) hits hardest
+        if skipped or like_proxy == 0:
+            if ms_played < 5_000:
+                depth_mult = 1.5
+            elif ms_played < 20_000:
+                depth_mult = 1.0
+            else:
+                depth_mult = 0.5
+            _skip_raw[uid][sid] += skip_decay * depth_mult
 
-                # Negative signal: explicit skip OR like_proxy == 0
-                # Depth multiplier: rage skip (< 5 s) hits hardest
-                if skipped or like_proxy == 0:
-                    if ms_played < 5_000:
-                        depth_mult = 1.5
-                    elif ms_played < 20_000:
-                        depth_mult = 1.0
-                    else:
-                        depth_mult = 0.5
-                    _skip_raw[uid][sid] += skip_decay * depth_mult
+        # Positive/recency signal: completed or highly played
+        if like_proxy == 1 or completion >= 0.8:
+            _recency_raw[uid][sid] += recency_decay
 
-                # Positive/recency signal: completed or highly played
-                if like_proxy == 1 or completion >= 0.8:
-                    _recency_raw[uid][sid] += recency_decay
+            # Per-user activity profile: accumulate audio features
+            # for songs the user actually finished in a known activity
+            sess_id = ev["session_id"]
+            if sess_id is not None:
+                act = session_activity.get((uid, sess_id))
+                if act:
+                    audio = _song_audio_vecs.get(sid)
+                    if audio:
+                        for feat, val in audio.items():
+                            act_sums[uid][act][feat]   += val
+                            act_counts[uid][act][feat] += 1
 
-                    # Per-user activity profile: accumulate audio features
-                    # for songs the user actually finished in a known activity
-                    try:
-                        sess_id = int(row.get("session_id", ""))
-                    except (ValueError, TypeError):
-                        sess_id = None
-                    if sess_id is not None:
-                        act = session_activity.get((uid, sess_id))
-                        if act:
-                            audio = _song_audio_vecs.get(sid)
-                            if audio:
-                                for feat, val in audio.items():
-                                    act_sums[uid][act][feat]   += val
-                                    act_counts[uid][act][feat] += 1
-
-        print(f"[RECOMMENDER] Events loaded for {len(_skip_raw)} users")
-    else:
-        print("[RECOMMENDER] No user_events.csv found — skip/recency signals disabled")
+    print(f"[RECOMMENDER] Events loaded for {len(_skip_raw)} users ({_source()})")
 
     _skip_scores    = {uid: dict(songs) for uid, songs in _skip_raw.items()}
     _recency_scores = {uid: dict(songs) for uid, songs in _recency_raw.items()}
@@ -332,6 +321,30 @@ def load_all():
 
     _loaded = True
     print("[RECOMMENDER] Ready.")
+
+
+def _source() -> str:
+    return "postgres" if db.enabled() else "csv"
+
+
+def _iter_events():
+    """Typed listening events from Postgres, or user_events.csv if no DATABASE_URL."""
+    if db.enabled():
+        yield from db.fetch_events()
+    elif _EVENTS_PATH.exists():
+        with open(_EVENTS_PATH, newline="", encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                try:
+                    yield db.parse_event_row(row)
+                except ValueError:
+                    continue  # malformed row
+    else:
+        print("[RECOMMENDER] No user_events.csv found — skip/recency signals disabled")
+
+
+def cache_profile(profile: dict):
+    """Add or replace a profile in memory so new/updated users are used without a restart."""
+    _user_profiles[profile["user_id"].lower()] = profile
 
 
 # ── Stage 1: Candidate Retrieval (filtering)

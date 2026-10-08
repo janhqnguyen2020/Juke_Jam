@@ -1,5 +1,6 @@
 import { SplitScreen } from "@/components/layout/SplitScreen"
 import Image from "next/image"
+import { API_URL } from "@/lib/api"
 
 export default function LoginPage() {
   return (
@@ -49,7 +50,7 @@ export default function LoginPage() {
 
             {/* buttons to onboard */}
             <div className="flex gap-[40px] mt-[20px]">
-              <a href="http://localhost:8000/spotify/login">
+              <a href={`${API_URL}/spotify/login`}>
                 <button className="w-[350px] bg-jukeDark hover:bg-black text-jukeCream rounded-full py-[20px] text-[30px] font-bold">
                   Connect Spotify
                 </button>

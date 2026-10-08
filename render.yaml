@@ -1,0 +1,27 @@
+# Render Blueprint for the JukeJam API.
+# Render dashboard -> New -> Blueprint -> pick this repo.
+# Secrets (sync: false) are entered in the dashboard and never stored in git.
+services:
+  - type: web
+    name: jukejam-api
+    runtime: python
+    plan: free            # 512 MB RAM; backend uses ~470 MB. Use "starter" if it runs out of memory.
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: DATABASE_URL
+        sync: false       # Neon pooled connection string (…-pooler…?sslmode=require)
+      - key: SPOTIFY_CLIENT_ID
+        sync: false
+      - key: SPOTIFY_CLIENT_SECRET
+        sync: false
+      - key: SPOTIFY_REDIRECT_URI
+        sync: false       # https://<this-service>.onrender.com/spotify/callback
+      - key: FRONTEND_URL
+        sync: false       # https://<your-app>.vercel.app
+      - key: ALLOWED_ORIGINS
+        sync: false       # https://<your-app>.vercel.app

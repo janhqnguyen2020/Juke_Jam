@@ -25,7 +25,9 @@ from services.profile_builder import (
 router = APIRouter()
 
 CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
-REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URL", "http://127.0.0.1:8000/spotify/callback")
+REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI", "http://127.0.0.1:8000/spotify/callback")
+# where to send the user after login (the Next.js app)
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
 AUTH_URL = "https://accounts.spotify.com/authorize"
 
 SCOPES = " ".join([
@@ -37,6 +39,9 @@ SCOPES = " ".join([
 # ---- Route 1: Login -> redirect to Spotify auth page ----
 @router.get("/login")
 def login():
+    if not CLIENT_ID:
+        raise HTTPException(500, "Spotify is not configured: set SPOTIFY_CLIENT_ID in backend/.env")
+
     params = urlencode({
         "client_id": CLIENT_ID,
         "response_type": "code",
@@ -83,7 +88,7 @@ async def callback(code: str):
     save_profile(profile)
 
     # Redirect to frontend home — user_id passed as query param for localStorage
-    return RedirectResponse(f"http://localhost:3000/home?user_id={user_id}")
+    return RedirectResponse(f"{FRONTEND_URL}/home?{urlencode({'user_id': user_id})}")
 
 # ---- Route 3: Album art proxy ----
 @router.get("/art/{track_id}")

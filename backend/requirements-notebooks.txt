@@ -1,0 +1,8 @@
+# =========================
+# Data & index-building notebooks (notebooks/*.ipynb)
+# Not needed to run the API server.
+# =========================
+-r requirements.txt
+pandas==3.0.0            # Data cleaning & feature engineering
+numpy==2.4.1             # Vector math & similarity computation
+scikit-learn==1.8.0      # TF-IDF & cosine similarity

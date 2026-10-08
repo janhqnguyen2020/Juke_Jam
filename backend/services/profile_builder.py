@@ -12,6 +12,8 @@ import json # for reading/writing json files
 import statistics # for calculating averages
 from pathlib import Path # for file paths
 
+from services import db, recommender
+
 #Path to USER_PROFILE.csv
 PROFILE_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "processed" / "USER_PROFILE.csv"
 
@@ -228,12 +230,20 @@ def build_spotify_profile(user_id: str, top_artists: dict, features: list[dict],
         "onboarding_source": "spotify_oauth",
     }
 
-# ── Save profile to CSV (shared by both onboarding paths) ─────────
+# ── Save profile (shared by both onboarding paths) ─────────
 def save_profile(profile: dict):
     """
-    Write a profile to USER_PROFILE.csv.
-    Updates the row if user_id already exists, otherwise appends.
+    Write a profile to Postgres (if DATABASE_URL is set) or USER_PROFILE.csv.
+    Updates the user if user_id already exists, otherwise adds it.
     """
+    if db.enabled():
+        db.upsert_profile(profile)
+    else:
+        _save_profile_csv(profile)
+    recommender.cache_profile(profile)
+
+
+def _save_profile_csv(profile: dict):
     rows = []
     found = False
 
@@ -260,6 +270,16 @@ def update_activity_preferences(user_id: str, activities: list[str]) -> dict | N
     Update just the activity_preferences field for an existing user.
     Returns the updated profile dict, or None if user not found.
     """
+    if db.enabled():
+        updated = db.update_activity_preferences(user_id, ",".join(activities))
+    else:
+        updated = _update_activity_preferences_csv(user_id, activities)
+    if updated:
+        recommender.cache_profile(updated)
+    return updated
+
+
+def _update_activity_preferences_csv(user_id: str, activities: list[str]) -> dict | None:
     rows = []
     updated_profile = None
 

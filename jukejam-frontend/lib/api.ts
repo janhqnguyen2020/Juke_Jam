@@ -1,6 +1,7 @@
 import type { HomeResponse, RecommendResponse } from "@/lib/types"
 
-const BASE_URL = "http://localhost:8000"
+// Set NEXT_PUBLIC_API_URL in .env.local (dev) or the Vercel dashboard (prod).
+export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "")
 
 export async function manualOnboard(payload: {
   user_id: string
@@ -12,7 +13,7 @@ export async function manualOnboard(payload: {
   tempo: string
   activities: string[]
 }): Promise<{ message: string }> {
-  const res = await fetch(`${BASE_URL}/manual/onboard`, {
+  const res = await fetch(`${API_URL}/manual/onboard`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -22,7 +23,7 @@ export async function manualOnboard(payload: {
 }
 
 export async function getHomeRecommendations(userId: string, topK = 10): Promise<HomeResponse> {
-  const res = await fetch(`${BASE_URL}/recommend/home/${userId}?top_k=${topK}`)
+  const res = await fetch(`${API_URL}/recommend/home/${userId}?top_k=${topK}`)
   if (!res.ok) throw new Error(`Server responded with ${res.status}`)
   return res.json()
 }
@@ -39,7 +40,7 @@ export async function getContextRecommendations(payload: {
   time_of_day?: string | null
   top_k?: number
 }, signal?: AbortSignal): Promise<RecommendResponse> {
-  const res = await fetch(`${BASE_URL}/recommend/`, {
+  const res = await fetch(`${API_URL}/recommend/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),

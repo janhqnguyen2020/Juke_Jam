@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { SplitScreen } from "@/components/layout/SplitScreen"
 import Image from "next/image"
+import { API_URL } from "@/lib/api"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -92,7 +93,7 @@ export default function LoginPage() {
           {/* Footer */}
           <p className="mt-6 text-jukeCream text-[24px]">
             No account?{" "}
-            <a href="http://localhost:8000/spotify/login" className="underline font-bold text-jukeCream hover:text-jukeCream/80">
+            <a href={`${API_URL}/spotify/login`} className="underline font-bold text-jukeCream hover:text-jukeCream/80">
               Start Jammin
             </a>
           </p>
