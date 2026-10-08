@@ -33,3 +33,11 @@ export interface RecommendResponse {
   count: number
   recommendations: Song[]
 }
+
+export interface ProfileSummary {
+  user_id: string
+  top_genres: string[]
+  energy_pref: number | null
+  energy_label: string | null
+  mood_bias: Record<string, number> | null
+}

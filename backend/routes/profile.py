@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException
 
 from models.user_profile import ActivityUpdateRequest
 from services.profile_builder import update_activity_preferences
+from services.recommender import get_profile_summary
 
 router = APIRouter()
 
@@ -36,3 +37,15 @@ def update_activities(req: ActivityUpdateRequest):
         "message": f"Activities updated for {req.user_id}",
         "profile": updated,
     }
+
+
+@router.get("/{user_id}")
+def get_profile(user_id: str):
+    """
+    Read-only taste summary for the frontend (top genres, energy, mood bias).
+    Served from the profiles already loaded in memory; nothing is written.
+    """
+    summary = get_profile_summary(user_id)
+    if summary is None:
+        raise HTTPException(404, f"User '{user_id}' not found.")
+    return summary

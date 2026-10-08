@@ -13,6 +13,23 @@
     --color-white: #ffffff;
     --color-black: #000000;
     --color-jukeGreen: #28B857;
+
+    /* JukeJam refresh palette (added alongside the original tokens) */
+    --color-jj-primary: #7A3030;
+    --color-jj-dark: #672626;
+    --color-jj-cream: #F7EDCF;
+    --color-jj-paper: #FFF8E6;
+    --color-jj-accent: #C98787;
+    --color-jj-border: #D8BDB0;
+    --color-jj-text: #6F2929;
+    --color-jj-muted: #A67570;
+
+    /* This project loads Tailwind without its default theme, so standard
+       utilities like p-6 / text-lg / lg: do not exist. The refreshed home page
+       uses bracket values plus these two breakpoints, named so they can't
+       change any existing page that happens to use sm:/md:/lg:. */
+    --breakpoint-tablet: 40rem;
+    --breakpoint-desk: 64rem;
     
 
     --radius-sm: calc(var(--radius) - 4px);
@@ -139,6 +156,32 @@ body {
   color: #6A2C2C;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
+
+/* Minimal reset for the refreshed home page only (Tailwind's preflight isn't loaded).
+   :where() keeps specificity at zero so utility classes always win. */
+:where(.jj-scope) *, :where(.jj-scope) *::before, :where(.jj-scope) *::after { box-sizing: border-box; }
+:where(.jj-scope) button, :where(.jj-scope) input { font-family: inherit; color: inherit; }
+:where(.jj-scope) button { background-color: transparent; border: 0 solid; padding: 0; cursor: pointer; }
+:where(.jj-scope) h1, :where(.jj-scope) h2, :where(.jj-scope) h3, :where(.jj-scope) p, :where(.jj-scope) ul { margin: 0; }
+:where(.jj-scope) ul { padding: 0; list-style: none; }
+
+/* Song card leaving the list after a skip */
+@keyframes jj-slide-out {
+  from { transform: translateX(0);    opacity: 0.45; }
+  to   { transform: translateX(48px); opacity: 0; }
+}
+.jj-slide-out { animation: jj-slide-out 0.35s ease-in forwards; }
+
+/* Loading skeleton pulse (Tailwind's animate-pulse isn't available without the default theme) */
+@keyframes jj-pulse { 50% { opacity: 0.5; } }
+.jj-pulse { animation: jj-pulse 1.6s ease-in-out infinite; }
+
+/* Toast entrance */
+@keyframes jj-toast-in {
+  from { transform: translateY(12px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.jj-toast-in { animation: jj-toast-in 0.2s ease-out; }
 
 /* Step slide animations */
 @keyframes slide-from-right {

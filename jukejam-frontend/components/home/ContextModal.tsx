@@ -150,7 +150,7 @@ export default function ContextModal({ open, loading, results, onClose, onReset,
               What&apos;s the vibe right now?
             </DialogTitle>
             <p className="text-jukeDark text-[18px] text-center">
-              Pick your activity and mood — get 5 song picks
+              Pick your activity and mood. Your feed will update to match.
             </p>
           </DialogHeader>
 
@@ -210,7 +210,7 @@ export default function ContextModal({ open, loading, results, onClose, onReset,
                 : "bg-jukeDark/15 text-jukeDark/30 cursor-not-allowed"
               }`}
           >
-            {loading ? "Finding songs…" : "Get My Recommendations"}
+            {loading ? "Finding songs…" : "Update my picks"}
           </button>
         </>
         )}

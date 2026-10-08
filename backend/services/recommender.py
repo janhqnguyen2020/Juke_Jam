@@ -347,6 +347,37 @@ def cache_profile(profile: dict):
     _user_profiles[profile["user_id"].lower()] = profile
 
 
+def get_profile_summary(user_id: str) -> dict | None:
+    """Read-only summary of a loaded profile for the frontend, or None if unknown."""
+    if not _loaded:
+        load_all()
+    profile = _user_profiles.get(user_id.lower())
+    if not profile:
+        return None
+
+    top_genres = [g.strip() for g in (profile.get("top_genres") or "").split(",") if g.strip()]
+
+    try:
+        energy_pref = float(profile.get("energy_pref"))
+    except (TypeError, ValueError):
+        energy_pref = None
+
+    mood_bias = profile.get("mood_bias")
+    if isinstance(mood_bias, str):
+        try:
+            mood_bias = json.loads(mood_bias) if mood_bias else None
+        except ValueError:
+            mood_bias = None
+
+    return {
+        "user_id":      profile.get("user_id", user_id),
+        "top_genres":   top_genres,
+        "energy_pref":  energy_pref,
+        "energy_label": _energy_pref_to_label(energy_pref) if energy_pref is not None else None,
+        "mood_bias":    mood_bias if isinstance(mood_bias, dict) else None,
+    }
+
+
 # ── Stage 1: Candidate Retrieval (filtering)
 
 def retrieve_candidates(

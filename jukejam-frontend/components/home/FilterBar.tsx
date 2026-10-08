@@ -1,6 +1,6 @@
 "use client"
 
-import { Sparkles } from "lucide-react"
+import { Check, Search } from "lucide-react"
 
 export interface FilterState {
   genre:  string | null
@@ -31,7 +31,24 @@ interface Props {
   onChange:       (f: FilterState) => void
   searchQuery:    string
   onSearchChange: (v: string) => void
-  onOpenQuiz:     () => void
+}
+
+function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`inline-flex items-center gap-[6px] rounded-full border px-[16px] py-[6px] text-[16px] font-[600] transition-colors
+        ${active
+          ? "border-jj-primary bg-jj-primary text-jj-paper"
+          : "border-jj-border bg-jj-paper text-jj-text hover:border-jj-accent hover:bg-jj-cream"
+        }`}
+    >
+      {active && <Check className="h-[16px] w-[16px]" strokeWidth={3} />}
+      {children}
+    </button>
+  )
 }
 
 function ChipRow({
@@ -46,80 +63,41 @@ function ChipRow({
   onSelect: (v: string | null) => void
 }) {
   return (
-    <div className="flex items-center gap-[12px] flex-wrap">
-      <span className="text-jukeDark/60 font-bold text-[24px] min-w-[95px] flex-shrink-0">
-        {label}
-      </span>
-
-      <button
-        onClick={() => onSelect(null)}
-        className={`flex-shrink-0 rounded-full px-[12px] py-[8px] text-[14px] font-bold border-2 transition-all duration-150
-          ${value === null
-            ? "bg-jukeRed  text-jukeCream border-jukeRed"
-            : "bg-white     text-jukeDark  border-jukeDark/20 hover:border-jukeDark/50"
-          }`}
-      >
-        All
-      </button>
-
-      {options.map((opt) => {
-        const active = value === opt.value
-        return (
-          <button
-            key={opt.value}
-            onClick={() => onSelect(active ? null : opt.value)}
-            className={`flex-shrink-0 rounded-full px-[20px] py-[8px] text-base font-bold border-2 transition-all duration-150
-              ${active
-                ? "bg-jukeRed  text-white    border-jukeRed shadow-[0_0_12px_rgba(156,75,75,0.35)]"
-                : "bg-white    text-jukeDark border-jukeDark/20 hover:border-jukeRed hover:text-jukeRed"
-              }`}
-          >
-            {opt.label}
-          </button>
-        )
-      })}
+    <div className="flex flex-col gap-[8px] tablet:flex-row tablet:items-start tablet:gap-[16px]">
+      <span className="w-[80px] shrink-0 pt-[6px] text-[16px] font-[700] text-jj-muted">{label}</span>
+      <div className="flex flex-wrap gap-[8px]">
+        <Chip active={value === null} onClick={() => onSelect(null)}>All</Chip>
+        {options.map((opt) => {
+          const active = value === opt.value
+          return (
+            <Chip key={opt.value} active={active} onClick={() => onSelect(active ? null : opt.value)}>
+              {opt.label}
+            </Chip>
+          )
+        })}
+      </div>
     </div>
   )
 }
 
-export default function FilterBar({ filters, onChange, searchQuery, onSearchChange, onOpenQuiz }: Props) {
+export default function FilterBar({ filters, onChange, searchQuery, onSearchChange }: Props) {
   const set = (key: keyof FilterState) => (value: string | null) =>
     onChange({ ...filters, [key]: value })
 
   return (
-    <div className="bg-white border-b-[4px] border-jukeRed px-[12px] py-[36px] flex flex-col gap-[12px] backdrop-blur-sm">
+    <div className="flex flex-col gap-[16px]">
       <ChipRow label="Genre"  options={GENRE_OPTIONS}  value={filters.genre}  onSelect={set("genre")}  />
       <ChipRow label="Energy" options={ENERGY_OPTIONS} value={filters.energy} onSelect={set("energy")} />
 
-      {/* Search + Context Quiz row */}
-      <div className="flex items-center gap-[10px] mt-[4px]">
-        {/* Search input */}
-        <div className="relative flex-1">
-          <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-            <svg className="w-4 h-4 text-jukeDark/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-          </div>
-          <input
-            type="text"
-            placeholder="Search artist or song…"
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="w-[95%] rounded-full px-[24px] py-5 text-[32px] text-jukeDark bg-jukeCream border-2 border-jukeDark/20 outline-none focus:border-jukeRed placeholder-jukeDark/40 transition-all"
-          />
-        </div>
-
-        {/* Context Quiz button */}
-        <button
-          onClick={onOpenQuiz}
-          suppressHydrationWarning
-          className="flex-shrink-0 flex items-center gap-[8px] px-[20px] py-[10px] rounded-full
-                     bg-jukeRed text-jukeCream font-bold text-[15px] border-2 border-jukeDark
-                     hover:bg-jukeDark transition-all duration-200 shadow-sm"
-        >
-          <Sparkles size={16} strokeWidth={2} />
-          Context Quiz
-        </button>
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-[16px] top-1/2 h-[20px] w-[20px] -translate-y-1/2 text-jj-muted" />
+        <input
+          type="text"
+          placeholder="Search artist or song…"
+          value={searchQuery}
+          onChange={(e) => onSearchChange(e.target.value)}
+          className="w-full rounded-full border border-jj-border bg-white/70 py-[12px] pl-[48px] pr-[20px] text-[18px] text-jj-text outline-none transition-colors placeholder:text-jj-muted focus:border-jj-primary"
+        />
       </div>
     </div>
   )

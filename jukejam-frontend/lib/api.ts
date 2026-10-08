@@ -1,4 +1,4 @@
-import type { HomeResponse, RecommendResponse } from "@/lib/types"
+import type { HomeResponse, ProfileSummary, RecommendResponse } from "@/lib/types"
 
 // Set NEXT_PUBLIC_API_URL in .env.local (dev) or the Vercel dashboard (prod).
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "")
@@ -48,4 +48,17 @@ export async function getContextRecommendations(payload: {
   })
   if (!res.ok) throw new Error(`Server responded with ${res.status}`)
   return res.json()
+}
+
+/** Read-only taste summary. Returns null on any failure so callers can just hide the UI. */
+export async function getProfile(userId: string): Promise<ProfileSummary | null> {
+  try {
+    const res = await fetch(`${API_URL}/profile/${encodeURIComponent(userId)}`)
+    if (!res.ok) return null
+    const data = await res.json()
+    if (!data || !Array.isArray(data.top_genres)) return null
+    return data as ProfileSummary
+  } catch {
+    return null
+  }
 }
