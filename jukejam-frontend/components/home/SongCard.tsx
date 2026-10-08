@@ -57,13 +57,13 @@ const FALLBACK_GRADIENTS: [string, string][] = [
 function Artwork({ trackId, artist, size }: { trackId: string; artist: string; size: "lg" | "md" }) {
   const [url, setUrl] = useState<string | null>(() => artCache.get(trackId) ?? null)
   const [broken, setBroken] = useState(false)
-  const [near, setNear] = useState(false)
+  const [near, setNear] = useState(() => typeof IntersectionObserver === "undefined")
   const boxRef = useRef<HTMLDivElement | null>(null)
 
   // Only start loading once the card is close to the viewport
   useEffect(() => {
     const el = boxRef.current
-    if (!el || typeof IntersectionObserver === "undefined") { setNear(true); return }
+    if (!el || typeof IntersectionObserver === "undefined") return
     const io = new IntersectionObserver((entries) => {
       if (entries.some((e) => e.isIntersecting)) { setNear(true); io.disconnect() }
     }, { rootMargin: "300px" })
@@ -71,14 +71,9 @@ function Artwork({ trackId, artist, size }: { trackId: string; artist: string; s
     return () => io.disconnect()
   }, [])
 
+  // Cards are keyed by track_id, so trackId is fixed for this instance
   useEffect(() => {
-    setBroken(false)
-    if (artCache.has(trackId)) {
-      setUrl(artCache.get(trackId) ?? null)
-      return
-    }
-    setUrl(null)
-    if (!near) return
+    if (artCache.has(trackId) || !near) return
     const controller = new AbortController()
     fetchArt(trackId, controller.signal).then((u) => { if (!controller.signal.aborted) setUrl(u) })
     return () => controller.abort()

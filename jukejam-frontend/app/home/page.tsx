@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation"
 import Image from "next/image"
 import { RefreshCw, Music, Music2, Music3, Star, ListMusic, SlidersHorizontal, Compass, X } from "lucide-react"
 import type { ProfileSummary, Song } from "@/lib/types"
-import { getHomeRecommendations, getContextRecommendations, getProfile, sendFeedback } from "@/lib/api"
+import { getContextRecommendations, getProfile, sendFeedback } from "@/lib/api"
 import { currentTimeSlot } from "@/lib/time"
 import type { ReasonContext } from "@/lib/reasons"
 import SongCard from "@/components/home/SongCard"
@@ -264,15 +264,16 @@ function HomePageInner() {
     const slowTimer = setTimeout(() => setFeedSlow(true), SLOW_NOTICE_MS)
     const { mood, activity } = contextRef.current
     try {
-      const data = mood || activity
-        ? await getContextRecommendations({
-            user_id:     userId,
-            mood:        mood ?? undefined,
-            activity:    activity ?? undefined,
-            time_of_day: currentTimeSlot(),
-            top_k:       POOL_SIZE,
-          }, controller.signal)
-        : await getHomeRecommendations(userId, POOL_SIZE)
+      // Time of day comes from the BROWSER clock. The GET /recommend/home endpoint
+      // uses the server clock (UTC on Render), so we call POST /recommend/ instead.
+      // With only user_id + time_of_day it makes the exact same ranking call.
+      const data = await getContextRecommendations({
+        user_id:     userId,
+        mood:        mood ?? undefined,
+        activity:    activity ?? undefined,
+        time_of_day: currentTimeSlot(),
+        top_k:       POOL_SIZE,
+      }, controller.signal)
       if (controller.signal.aborted) return
       setPool(rankAll(cleanSongs(data?.recommendations)))
       setOffset(0)
