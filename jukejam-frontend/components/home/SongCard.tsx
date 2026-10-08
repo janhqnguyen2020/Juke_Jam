@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { ChevronDown, ChevronRight, ExternalLink, Check, Minus } from "lucide-react"
+import { ChevronDown, ChevronRight, ExternalLink, Check, Minus, Heart, ThumbsDown } from "lucide-react"
 import type { ScoreDebug, Song } from "@/lib/types"
 import { API_URL } from "@/lib/api"
 import { getReasons, type ReasonContext } from "@/lib/reasons"
@@ -160,9 +160,49 @@ interface Props {
   rank: number
   variant?: "featured" | "row"
   context: ReasonContext
+  liked?: boolean
+  leaving?: boolean
+  onLike?: () => void
+  onSkip?: () => void
 }
 
-export default function SongCard({ song, rank, variant = "row", context }: Props) {
+function FeedbackButtons({ liked, onLike, onSkip, disabled }: { liked: boolean; onLike?: () => void; onSkip?: () => void; disabled: boolean }) {
+  if (!onLike && !onSkip) return null
+  const base = "inline-flex items-center gap-[6px] rounded-full border px-[12px] py-[4px] text-[14px] font-[600] transition-colors disabled:cursor-default"
+  return (
+    <div className="flex items-center gap-[8px]">
+      {onLike && (
+        <button
+          type="button"
+          onClick={onLike}
+          disabled={disabled}
+          aria-pressed={liked}
+          aria-label={liked ? "Liked" : "Like"}
+          className={`${base} ${liked
+            ? "border-jj-primary bg-jj-primary text-jj-paper"
+            : "border-jj-border bg-jj-paper text-jj-text hover:border-jj-primary"}`}
+        >
+          <Heart className="h-[14px] w-[14px]" fill={liked ? "currentColor" : "none"} strokeWidth={2.5} />
+          {liked ? "Liked" : "Like"}
+        </button>
+      )}
+      {onSkip && (
+        <button
+          type="button"
+          onClick={onSkip}
+          disabled={disabled}
+          aria-label="Skip"
+          className={`${base} border-jj-border bg-jj-paper text-jj-muted hover:border-jj-accent hover:text-jj-text`}
+        >
+          <ThumbsDown className="h-[14px] w-[14px]" strokeWidth={2.5} />
+          Skip
+        </button>
+      )}
+    </div>
+  )
+}
+
+export default function SongCard({ song, rank, variant = "row", context, liked = false, leaving = false, onLike, onSkip }: Props) {
   const [whyOpen, setWhyOpen] = useState(false)
   const [scoreOpen, setScoreOpen] = useState(false)
   const featured = variant === "featured"
@@ -171,15 +211,19 @@ export default function SongCard({ song, rank, variant = "row", context }: Props
   const artist = known(song.artist) ? song.artist : "Unknown artist"
   const reasons = whyOpen ? getReasons(song, context) : []
   const popularity = typeof song.popularity === "number" ? song.popularity : null
-  const showGenre = known(song.genre) && song.genre.toLowerCase() !== String(song.main_genre ?? "").toLowerCase()
+  // Granular genre pill only when it adds something (e.g. genre "chill" next to mood "chill" would repeat)
+  const showGenre = known(song.genre)
+    && song.genre.toLowerCase() !== String(song.main_genre ?? "").toLowerCase()
+    && song.genre.toLowerCase() !== String(song.mood ?? "").toLowerCase()
 
   return (
     <article
       data-song-card
       data-title={title}
-      className={featured
+      aria-hidden={leaving || undefined}
+      className={`${featured
         ? "min-w-[0px]"
-        : "min-w-[0px] rounded-[16px] border border-jj-border bg-jj-paper p-[16px] transition-colors hover:border-jj-accent tablet:p-[20px]"}
+        : "min-w-[0px] rounded-[16px] border border-jj-border bg-jj-paper p-[16px] transition-colors hover:border-jj-accent tablet:p-[20px]"} ${leaving ? "jj-slide-out pointer-events-none" : ""}`}
     >
       <div className={`flex gap-[16px] ${featured ? "flex-col tablet:flex-row tablet:gap-[24px]" : ""}`}>
         <Artwork trackId={song.track_id} artist={artist} size={featured ? "lg" : "md"} />
@@ -200,7 +244,8 @@ export default function SongCard({ song, rank, variant = "row", context }: Props
             {known(song.energy_label) && <Pill>{song.energy_label} energy</Pill>}
           </div>
 
-          <div className="mt-[12px] flex flex-wrap items-center gap-x-[16px] gap-y-[4px] text-[14px] text-jj-muted">
+          <div className="mt-[12px] flex flex-wrap items-center justify-between gap-[12px]">
+          <div className="flex flex-wrap items-center gap-x-[16px] gap-y-[4px] text-[14px] text-jj-muted">
             {popularity !== null && <span>Popularity {popularity}/100</span>}
             <a
               href={`https://open.spotify.com/track/${encodeURIComponent(song.track_id)}`}
@@ -210,6 +255,8 @@ export default function SongCard({ song, rank, variant = "row", context }: Props
             >
               Open in Spotify <ExternalLink className="h-[14px] w-[14px]" />
             </a>
+          </div>
+          <FeedbackButtons liked={liked} onLike={onLike} onSkip={onSkip} disabled={leaving} />
           </div>
 
           <button

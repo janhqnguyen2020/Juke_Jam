@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation"
 import Image from "next/image"
 import { RefreshCw, Music, Music2, Music3, Star, ListMusic, SlidersHorizontal, Compass, X } from "lucide-react"
 import type { ProfileSummary, Song } from "@/lib/types"
-import { getHomeRecommendations, getContextRecommendations, getProfile } from "@/lib/api"
+import { getHomeRecommendations, getContextRecommendations, getProfile, sendFeedback } from "@/lib/api"
 import { currentTimeSlot } from "@/lib/time"
 import type { ReasonContext } from "@/lib/reasons"
 import SongCard from "@/components/home/SongCard"
@@ -17,8 +17,13 @@ import { Panel, Pill } from "@/components/ui/panel"
 // ─── Constants ────────────────────────────────────────────────────────────────
 const POOL_SIZE = 30   // songs fetched for the home feed (refresh pages through these)
 const PAGE_SIZE = 10   // songs shown at once: #1 featured + 9 below
-const FILTER_TOP_K = 10
+const FILTER_FETCH = 20  // fetch extra so skipped songs can be replaced
+const FILTER_SHOW  = 10
+const DISCOVER_FETCH = 10
+const DISCOVER_SHOW  = 5
 const SLOW_NOTICE_MS = 6000
+const SKIP_ANIMATION_MS = 350
+const TOAST_MS = 2800
 
 // ─── Subgenre discovery pool ──────────────────────────────────────────────────
 const DISCOVERY_GENRES = [
@@ -183,16 +188,23 @@ function HomePageInner() {
   // ── Filtered results (only used while a filter or search is active) ────────
   const [filters,        setFilters]        = useState<FilterState>({ genre: null, energy: null })
   const [searchQuery,    setSearchQuery]    = useState("")
-  const [exploreSongs,   setExploreSongs]   = useState<Song[]>([])
+  const [exploreSongs,   setExploreSongs]   = useState<Ranked[]>([])
   const [exploreLoading, setExploreLoading] = useState(false)
   const [exploreError,   setExploreError]   = useState<string | null>(null)
 
   // ── Discover (subgenre) ─────────────────────────────────────────────────────
   const [subgenreChips,    setSubgenreChips]    = useState<string[]>([])
   const [activeSubgenre,   setActiveSubgenre]   = useState<string | null>(null)
-  const [subgenreSongs,    setSubgenreSongs]    = useState<Song[] | null>(null)
+  const [subgenreSongs,    setSubgenreSongs]    = useState<Ranked[] | null>(null)
   const [subgenreLoading,  setSubgenreLoading]  = useState(false)
   const [subgenreError,    setSubgenreError]    = useState<string | null>(null)
+
+  // ── Feedback ────────────────────────────────────────────────────────────────
+  const [skippedIds, setSkippedIds] = useState<Set<string>>(() => new Set())
+  const [leavingIds, setLeavingIds] = useState<Set<string>>(() => new Set())
+  const [likedIds,   setLikedIds]   = useState<Set<string>>(() => new Set())
+  const [toast,      setToast]      = useState<{ id: number; text: string } | null>(null)
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Refs so debounced callbacks always read the latest values
   const filtersRef = useRef(filters)
@@ -307,10 +319,10 @@ function HomePageInner() {
         mood:        mood ?? undefined,
         activity:    activity ?? undefined,
         time_of_day: currentTimeSlot(),
-        top_k:       FILTER_TOP_K,
+        top_k:       FILTER_FETCH,
       }, controller.signal)
       if (controller.signal.aborted) return
-      setExploreSongs(cleanSongs(data?.recommendations))
+      setExploreSongs(rankAll(cleanSongs(data?.recommendations)))
     } catch (err) {
       if ((err as Error)?.name === "AbortError") return
       setExploreError("Could not load filtered songs. Try again in a moment.")
@@ -354,12 +366,47 @@ function HomePageInner() {
 
   // ── Refresh: next PAGE_SIZE songs from the pool, or refetch when exhausted ─
   const handleRefresh = () => {
-    if (pool.length > PAGE_SIZE) {
-      setOffset((o) => (o + PAGE_SIZE < pool.length ? o + PAGE_SIZE : 0))
+    const liveCount = pool.filter((r) => !skippedIds.has(r.song.track_id)).length
+    if (liveCount > PAGE_SIZE) {
+      setOffset((o) => (o + PAGE_SIZE < liveCount ? o + PAGE_SIZE : 0))
     } else {
       loadFeed()
     }
   }
+
+  // ── Like / Skip ───────────────────────────────────────────────────────────
+  const showToast = (text: string) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    setToast({ id: Date.now(), text })
+    toastTimerRef.current = setTimeout(() => setToast(null), TOAST_MS)
+  }
+
+  const handleLike = (song: Song) => {
+    if (!userId || likedIds.has(song.track_id)) return
+    setLikedIds((prev) => new Set(prev).add(song.track_id))
+    showToast("Liked. Saved to your listening history.")
+    void sendFeedback({ user_id: userId, track_id: song.track_id, action: "like", time_of_day: currentTimeSlot() })
+  }
+
+  const handleSkip = (song: Song) => {
+    const id = song.track_id
+    if (!userId || leavingIds.has(id) || skippedIds.has(id)) return
+    setLeavingIds((prev) => new Set(prev).add(id))
+    showToast("Skipped. We'll use this to tune your picks.")
+    void sendFeedback({ user_id: userId, track_id: id, action: "skip", time_of_day: currentTimeSlot() })
+    // After the fade/slide, drop it everywhere; lists slice from what's left, so the next song moves up
+    setTimeout(() => {
+      setSkippedIds((prev) => new Set(prev).add(id))
+      setLeavingIds((prev) => { const n = new Set(prev); n.delete(id); return n })
+    }, SKIP_ANIMATION_MS)
+  }
+
+  const feedbackProps = (song: Song) => ({
+    liked:   likedIds.has(song.track_id),
+    leaving: leavingIds.has(song.track_id),
+    onLike:  () => handleLike(song),
+    onSkip:  () => handleSkip(song),
+  })
 
   // ── Discover ────────────────────────────────────────────────────────────────
   const fetchSubgenreSongs = async (genre: string) => {
@@ -367,8 +414,8 @@ function HomePageInner() {
     setSubgenreLoading(true)
     setSubgenreError(null)
     try {
-      const data = await getContextRecommendations({ user_id: userId, genres: [genre], top_k: 5 })
-      setSubgenreSongs(cleanSongs(data?.recommendations))
+      const data = await getContextRecommendations({ user_id: userId, genres: [genre], top_k: DISCOVER_FETCH })
+      setSubgenreSongs(rankAll(cleanSongs(data?.recommendations)))
     } catch {
       setSubgenreError("Could not load songs for this subgenre.")
     } finally {
@@ -397,7 +444,10 @@ function HomePageInner() {
   if (!userId && !initLoading) return <UsernameGate onSet={setUserId} />
 
   // ── Derived ───────────────────────────────────────────────────────────────
-  const visible  = pool.slice(offset, offset + PAGE_SIZE)
+  const notSkipped = (r: Ranked) => !skippedIds.has(r.song.track_id)
+  const visible  = pool.filter(notSkipped).slice(offset, offset + PAGE_SIZE)
+  const filteredVisible = exploreSongs.filter(notSkipped).slice(0, FILTER_SHOW)
+  const discoverVisible = subgenreSongs ? subgenreSongs.filter(notSkipped).slice(0, DISCOVER_SHOW) : null
   const featured = visible[0] ?? null
   const rest     = visible.slice(1)
   const firstRank = visible[0]?.rank ?? 1
@@ -498,7 +548,7 @@ function HomePageInner() {
             ) : feedError ? (
               <ErrorState message={feedError} onRetry={loadFeed} />
             ) : featured ? (
-              <SongCard song={featured.song} rank={featured.rank} variant="featured" context={feedCtx} />
+              <SongCard key={featured.song.track_id} song={featured.song} rank={featured.rank} variant="featured" context={feedCtx} {...feedbackProps(featured.song)} />
             ) : (
               <EmptyState title="No picks yet" hint="Try setting a mood and activity, or take the taste quiz." />
             )}
@@ -535,16 +585,17 @@ function HomePageInner() {
               <LoadingList count={4} />
             ) : exploreError ? (
               <ErrorState message={exploreError} onRetry={() => fetchExplore({ ...filters, search: searchQuery })} />
-            ) : exploreSongs.length === 0 ? (
+            ) : filteredVisible.length === 0 ? (
               <EmptyState title="No songs match these filters" hint="Try a different genre, energy level or search." />
             ) : (
               <div className="flex flex-col gap-[12px]">
-                {exploreSongs.map((song, i) => (
+                {filteredVisible.map(({ song, rank }) => (
                   <SongCard
                     key={song.track_id}
                     song={song}
-                    rank={i + 1}
+                    rank={rank}
                     context={exploreCtx}
+                    {...feedbackProps(song)}
                   />
                 ))}
               </div>
@@ -574,6 +625,7 @@ function HomePageInner() {
                     song={song}
                     rank={rank}
                     context={feedCtx}
+                    {...feedbackProps(song)}
                   />
                 ))}
               </div>
@@ -594,7 +646,7 @@ function HomePageInner() {
         >
           <p className="mb-[12px] text-[16px] text-jj-muted">
             {activeSubgenre
-              ? `5 tracks from ${activeSubgenre.replace(/-/g, " ")}`
+              ? `Top tracks from ${activeSubgenre.replace(/-/g, " ")}`
               : "Pick a subgenre you might not have tried."}
           </p>
           <div className="mb-[16px] flex flex-wrap gap-[8px]">
@@ -621,14 +673,15 @@ function HomePageInner() {
             <LoadingList count={3} />
           ) : subgenreError ? (
             <ErrorState message={subgenreError} onRetry={activeSubgenre ? () => fetchSubgenreSongs(activeSubgenre) : undefined} />
-          ) : subgenreSongs && subgenreSongs.length > 0 ? (
+          ) : discoverVisible && discoverVisible.length > 0 ? (
             <div className="flex flex-col gap-[12px]">
-              {subgenreSongs.map((song, i) => (
+              {discoverVisible.map(({ song, rank }) => (
                 <SongCard
                   key={song.track_id}
                   song={song}
-                  rank={i + 1}
+                  rank={rank}
                   context={discoverCtx}
+                  {...feedbackProps(song)}
                 />
               ))}
             </div>
@@ -637,6 +690,15 @@ function HomePageInner() {
           ) : null}
         </Panel>
       </main>
+
+      {/* ════ TOAST ════════════════════════════════════════════════════════════ */}
+      <div aria-live="polite" role="status" className="pointer-events-none fixed inset-x-[0px] bottom-[24px] z-[60] flex justify-center px-[16px]">
+        {toast && (
+          <div key={toast.id} className="jj-toast-in rounded-full bg-jj-dark px-[20px] py-[10px] text-[16px] font-[600] text-jj-paper">
+            {toast.text}
+          </div>
+        )}
+      </div>
 
       {/* ════ CONTEXT POPUP ════════════════════════════════════════════════════ */}
       <ContextModal

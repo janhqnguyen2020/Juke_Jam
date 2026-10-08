@@ -10,6 +10,7 @@ from routes.spotify import router as spotify_router
 from routes.manual import router as manual_router
 from routes.profile import router as profile_router
 from routes.recommend import router as recommend_router
+from routes.feedback import router as feedback_router
 
 from services import db
 from services.recommender import load_all
@@ -42,6 +43,7 @@ app.include_router(spotify_router,  prefix="/spotify")
 app.include_router(manual_router,   prefix="/manual")
 app.include_router(profile_router,  prefix="/profile")
 app.include_router(recommend_router, prefix="/recommend")   # new
+app.include_router(feedback_router)                          # POST /feedback
 
 
 @app.get("/")

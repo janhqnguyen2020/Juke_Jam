@@ -62,3 +62,30 @@ export async function getProfile(userId: string): Promise<ProfileSummary | null>
     return null
   }
 }
+
+/**
+ * Record a like or skip. Never throws: the UI reacts immediately either way,
+ * and a failure is only logged.
+ */
+export async function sendFeedback(payload: {
+  user_id: string
+  track_id: string
+  action: "like" | "skip"
+  time_of_day?: string
+}): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_URL}/feedback`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+    if (!res.ok) {
+      console.warn(`[feedback] ${payload.action} not saved: server responded ${res.status}`)
+      return false
+    }
+    return true
+  } catch (err) {
+    console.warn(`[feedback] ${payload.action} not saved:`, err)
+    return false
+  }
+}

@@ -185,3 +185,12 @@ def fetch_events():
         cur.itersize = 10_000
         cur.execute(f"SELECT {cols} FROM user_events")
         yield from cur
+
+
+def insert_event(event: dict):
+    """Insert one row into user_events. Keys are a subset of EVENT_FIELDS; missing ones are NULL."""
+    cols = [f for f in EVENT_FIELDS if f in event]
+    sql = (f"INSERT INTO user_events ({', '.join(cols)}) "
+           f"VALUES ({', '.join(f'%({c})s' for c in cols)})")
+    with connect() as conn:
+        conn.execute(sql, {c: event[c] for c in cols})

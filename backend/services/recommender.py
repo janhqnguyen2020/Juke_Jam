@@ -347,6 +347,19 @@ def cache_profile(profile: dict):
     _user_profiles[profile["user_id"].lower()] = profile
 
 
+# Weight of one in-app skip. Same as a skip loaded from user_events with
+# ms_played < 5 s at decay 1.0 (see load_all), so a restart gives the same result.
+_APP_SKIP_WEIGHT = 1.5
+
+
+def record_skip(user_id: str, track_id: str):
+    """Apply a just-recorded skip in memory so the next request already ranks it lower."""
+    if not _loaded:
+        load_all()
+    user = _skip_scores.setdefault(user_id.lower(), {})
+    user[track_id] = user.get(track_id, 0.0) + _APP_SKIP_WEIGHT
+
+
 def get_profile_summary(user_id: str) -> dict | None:
     """Read-only summary of a loaded profile for the frontend, or None if unknown."""
     if not _loaded:
