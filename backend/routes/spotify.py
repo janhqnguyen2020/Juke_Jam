@@ -9,7 +9,7 @@ import os # for env vars
 from urllib.parse import urlencode # for building query strings
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from services.spotify_client import (
     exchange_code_for_token, get_current_user,
@@ -96,4 +96,5 @@ async def track_art(track_id: str):
     url = await get_track_art(track_id)
     if not url:
         raise HTTPException(404, "Album art not found")
-    return {"url": url}
+    # Let the browser reuse the answer for a day instead of asking again on every visit
+    return JSONResponse({"url": url}, headers={"Cache-Control": "public, max-age=86400"})

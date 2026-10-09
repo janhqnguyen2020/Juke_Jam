@@ -12,11 +12,10 @@ import { Pill } from "@/components/ui/panel"
 // `null` = we asked and there is none.
 const artCache = new Map<string, string | null>()
 
-// The backend's art endpoint opens a new HTTPS client per call, which briefly
-// blocks the server. Firing ten at once delays every other request (filters,
-// feed) by several seconds, so art loads at most two at a time, and only for
-// cards near the viewport.
-const ART_CONCURRENCY = 2
+// Art loads a few at a time, and only for cards near the viewport, so it never
+// crowds out the feed and filter requests. The backend reuses one Spotify
+// connection and caches art URLs, so a handful in parallel is cheap.
+const ART_CONCURRENCY = 6
 let artActive = 0
 const artQueue: (() => void)[] = []
 

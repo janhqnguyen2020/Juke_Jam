@@ -14,6 +14,7 @@ from routes.feedback import router as feedback_router
 
 from services import db
 from services.recommender import load_all
+from services.spotify_client import close_client
 
 
 @asynccontextmanager
@@ -24,6 +25,7 @@ async def lifespan(app: FastAPI):
         db.init_db()   # create user_profiles / user_events tables if missing
     load_all()
     yield
+    await close_client()
 
 
 app = FastAPI(title="JukeJam API", lifespan=lifespan)

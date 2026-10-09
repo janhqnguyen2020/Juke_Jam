@@ -1,6 +1,5 @@
 "use client"
 
-import Link from "next/link"
 import { Sunrise, Sun, Sunset, Moon, Sparkles, X } from "lucide-react"
 import type { ProfileSummary } from "@/lib/types"
 import { timeSlotFromHour, type TimeSlot } from "@/lib/time"
@@ -93,13 +92,6 @@ export default function ContextHero({ now, profile, selections, onOpenContext, o
           )}
         </div>
       </div>
-
-      <Link
-        href="/onboarding/manual"
-        className="mt-auto pt-[24px] text-[16px] font-[600] text-jj-primary hover:underline"
-      >
-        New to JukeJam? Take the 5-question taste quiz →
-      </Link>
     </Panel>
   )
 }
